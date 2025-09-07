@@ -1,0 +1,27 @@
+from ros2_systemd.verb import VerbExtension
+from ros2_systemd.api.systemd_manager import SystemdServiceManager
+
+
+class StopVerb(VerbExtension):
+    """Stop a ROS2 systemd service."""
+
+    def add_arguments(self, parser, cli_name):
+        parser.add_argument(
+            'service_name',
+            help='Name of the service to stop (without ros2- prefix)')
+        parser.add_argument(
+            '--system',
+            action='store_true',
+            help='Stop system service instead of user service')
+
+    def main(self, *, args):
+        manager = SystemdServiceManager(user_mode=not args.system)
+        success, message = manager.stop_service(args.service_name)
+        
+        if success:
+            print(f"Successfully stopped service 'ros2-{args.service_name}'")
+            return 0
+        else:
+            print(f"Failed to stop service 'ros2-{args.service_name}'")
+            print(f"Error: {message}")
+            return 1

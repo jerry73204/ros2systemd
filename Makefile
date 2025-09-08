@@ -1,21 +1,26 @@
-.PHONY: help build test clean install dev lint format check-env
-
-PACKAGE_NAME = ros2_systemd
 PYTHON = python3
 COLCON = colcon
 ROS_DISTRO ?= humble
 
+# Build flags
+BUILD_FLAGS = --symlink-install
+
+# Test flags
+TEST_FLAGS =
+
+.PHONY: help
 help:
 	@echo "Available targets:"
 	@echo "  help       - Show this help message"
-	@echo "  build      - Build the package with colcon"
-	@echo "  test       - Run tests"
+	@echo "  deps       - Install dependencies using rosdep"
+	@echo "  build      - Build packages with colcon"
+	@echo "  test       - Run tests for packages"
 	@echo "  clean      - Remove build artifacts"
-	@echo "  install    - Install the package locally"
-	@echo "  dev        - Setup development environment"
-	@echo "  lint       - Run code linters"
+	@echo "  lint       - Run flake8 code linter"
 	@echo "  format     - Format code with black"
+	@echo "  check-style - Check code style with isort and pylint"
 
+.PHONY: check-env
 check-env:
 	@if [ -z "$(ROS_DISTRO)" ]; then \
 		echo "Error: ROS2 environment not sourced"; \
@@ -23,21 +28,36 @@ check-env:
 		exit 1; \
 	fi
 
+.PHONY: deps
+deps: check-env
+	@echo "Installing dependencies with rosdep..."
+	@echo "This will install all dependencies listed in package.xml files."
+	@. /opt/ros/$(ROS_DISTRO)/setup.sh && rosdep install --from-paths . --ignore-src -r -y --rosdistro $(ROS_DISTRO)
+	@echo "Dependencies installed successfully."
+
+.PHONY: build
 build: check-env
-	@echo "Building $(PACKAGE_NAME)..."
-	@$(COLCON) build --symlink-install --packages-select $(PACKAGE_NAME)
+	@echo "Building packages..."
+	@$(COLCON) build $(BUILD_FLAGS)
 	@echo "Build complete. Run 'source install/setup.bash' to use."
 
+.PHONY: test
 test: check-env
 	@echo "Running tests..."
-	@if [ -f install/setup.bash ]; then \
-		. install/setup.bash && $(COLCON) test --packages-select $(PACKAGE_NAME); \
-		$(COLCON) test-result --verbose; \
-	else \
-		echo "Running local tests without build..."; \
-		$(PYTHON) test_manual.py; \
-	fi
+	@. /opt/ros/$(ROS_DISTRO)/setup.sh && \
+	$(COLCON) test $(TEST_FLAGS)
+	@. /opt/ros/$(ROS_DISTRO)/setup.sh && \
+	$(COLCON) test-result --verbose
 
+.PHONY: test-coverage
+test-coverage: check-env
+	@echo "Running tests with coverage..."
+	@. /opt/ros/$(ROS_DISTRO)/setup.sh && \
+	$(COLCON) test $(TEST_FLAGS) --pytest-with-coverage
+	@. /opt/ros/$(ROS_DISTRO)/setup.sh && \
+	$(COLCON) test-result --verbose
+
+.PHONY: clean
 clean:
 	@echo "Cleaning build artifacts..."
 	@rm -rf build install log
@@ -48,27 +68,43 @@ clean:
 	@find . -name ".pytest_cache" -type d -exec rm -rf {} + 2>/dev/null || true
 	@echo "Clean complete."
 
-install: build
-	@echo "Installing $(PACKAGE_NAME)..."
-	@. install/setup.bash && $(COLCON) build --symlink-install --packages-select $(PACKAGE_NAME)
-	@echo "Installation complete."
-
-dev:
-	@echo "Setting up development environment..."
-	@chmod +x dev_setup.sh test_manual.py test_local.sh
-	@./dev_setup.sh
-	@echo "Development environment ready."
-
-lint:
+.PHONY: lint
+lint: check-env
 	@echo "Running linters..."
-	@$(PYTHON) -m flake8 $(PACKAGE_NAME) --max-line-length=120 --exclude=__pycache__ 2>/dev/null || \
-		(echo "flake8 not installed. Install with: pip3 install flake8" && exit 1)
-	@$(PYTHON) -m pylint $(PACKAGE_NAME) --max-line-length=120 2>/dev/null || \
-		(echo "pylint not installed. Install with: pip3 install pylint" && exit 0)
+	@if ! command -v flake8 >/dev/null 2>&1; then \
+		echo "Error: flake8 not found."; \
+		echo "Install dependencies with: make deps"; \
+		echo "Or manually: sudo apt install python3-flake8"; \
+		exit 1; \
+	fi
+	@$(PYTHON) -m flake8 ros2_systemd --max-line-length=120 \
+		--exclude=__pycache__ \
+		--extend-ignore=Q000,D100,D101,D102,D103,D104,D105,D107
 
-format:
+.PHONY: format
+format: check-env
 	@echo "Formatting code..."
-	@$(PYTHON) -m black $(PACKAGE_NAME) --line-length=120 2>/dev/null || \
-		(echo "black not installed. Install with: pip3 install black" && exit 1)
-	@$(PYTHON) -m isort $(PACKAGE_NAME) 2>/dev/null || \
-		(echo "isort not installed. Install with: pip3 install isort" && exit 0)
+	@if ! command -v black >/dev/null 2>&1; then \
+		echo "Error: black not found."; \
+		echo "Install dependencies with: make deps"; \
+		echo "Or manually: sudo apt install black"; \
+		exit 1; \
+	fi
+	@$(PYTHON) -m black ros2_systemd tests --line-length=120
+
+.PHONY: check-style
+check-style: check-env
+	@echo "Checking code style with isort and pylint (optional tools)..."
+	@if ! command -v isort >/dev/null 2>&1; then \
+		echo "Note: isort not found. Install with: sudo apt install python3-isort"; \
+	else \
+		echo "Checking import order with isort..."; \
+		$(PYTHON) -m isort ros2_systemd tests --check-only --diff; \
+	fi
+	@if ! command -v pylint >/dev/null 2>&1; then \
+		echo "Note: pylint not found. Install with: sudo apt install pylint"; \
+	else \
+		echo "Running pylint..."; \
+		$(PYTHON) -m pylint ros2_systemd --rcfile=.pylintrc 2>/dev/null || \
+			$(PYTHON) -m pylint ros2_systemd; \
+	fi

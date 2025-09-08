@@ -1,96 +1,147 @@
-import os
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 
 class SystemdServiceManager:
     """Manager for creating and managing systemd services for ROS2 nodes and launches."""
-    
+
     SERVICE_PREFIX = "ros2-"
     SYSTEMD_USER_DIR = Path.home() / ".config" / "systemd" / "user"
     SYSTEMD_SYSTEM_DIR = Path("/etc/systemd/system")
-    
+
     def __init__(self, user_mode: bool = True):
         """
         Initialize the SystemdServiceManager.
-        
+
         Args:
             user_mode: If True, manages user services. If False, manages system services.
         """
         self.user_mode = user_mode
         self.service_dir = self.SYSTEMD_USER_DIR if user_mode else self.SYSTEMD_SYSTEM_DIR
-        
+
         if user_mode and not self.service_dir.exists():
             self.service_dir.mkdir(parents=True, exist_ok=True)
-    
+
     def _get_systemctl_cmd(self, command: List[str]) -> List[str]:
         """Get the appropriate systemctl command based on mode."""
         base_cmd = ["systemctl"]
         if self.user_mode:
             base_cmd.append("--user")
         return base_cmd + command
-    
+
     def _run_systemctl(self, command: List[str]) -> Tuple[int, str, str]:
         """Run a systemctl command and return the result."""
         cmd = self._get_systemctl_cmd(command)
         result = subprocess.run(cmd, capture_output=True, text=True)
         return result.returncode, result.stdout, result.stderr
-    
-    def create_launch_service(self, 
-                            service_name: str,
-                            launch_file: str,
-                            launch_args: Optional[Dict[str, str]] = None,
-                            env_vars: Optional[Dict[str, str]] = None,
-                            description: Optional[str] = None) -> bool:
+
+    def _validate_service_name(self, service_name: str) -> Tuple[bool, str]:
+        """
+        Validate service name.
+
+        Args:
+            service_name: Name to validate
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        if not service_name:
+            return False, "Service name cannot be empty"
+
+        if len(service_name) > 200:
+            return False, "Service name too long (max 200 characters)"
+
+        # Check for invalid characters
+        import re
+
+        if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9-_.]*$", service_name):
+            return (
+                False,
+                "Service name must start with alphanumeric and contain only letters, "
+                "numbers, hyphens, underscores, and dots",
+            )
+
+        # Check for reserved names
+        reserved_names = ["all", "help", "list", "status"]
+        if service_name.lower() in reserved_names:
+            return False, f"'{service_name}' is a reserved name"
+
+        return True, ""
+
+    def create_launch_service(
+        self,
+        service_name: str,
+        launch_file: str,
+        launch_args: Optional[Dict[str, str]] = None,
+        env_vars: Optional[Dict[str, str]] = None,
+        description: Optional[str] = None,
+    ) -> bool:
         """
         Create a systemd service for a ROS2 launch file.
-        
+
         Args:
             service_name: Name of the service (will be prefixed with 'ros2-')
             launch_file: Path to the launch file
             launch_args: Optional launch arguments
             env_vars: Optional environment variables
             description: Optional service description
-            
+
         Returns:
             True if service was created successfully
         """
+        # Validate service name
+        valid, error_msg = self._validate_service_name(service_name)
+        if not valid:
+            print(f"Error: Invalid service name - {error_msg}")
+            return False
+
+        # Check if launch file exists
+        if not Path(launch_file).exists():
+            print(f"Error: Launch file not found: {launch_file}")
+            return False
+
         full_service_name = f"{self.SERVICE_PREFIX}{service_name}"
         service_file = self.service_dir / f"{full_service_name}.service"
-        
+
+        # Check if service already exists
+        if service_file.exists():
+            print(f"Error: Service '{full_service_name}' already exists. Remove it first or choose a different name.")
+            return False
+
         # Build the launch command
         launch_cmd = ["ros2", "launch", launch_file]
         if launch_args:
             for key, value in launch_args.items():
                 launch_cmd.append(f"{key}:={value}")
-        
+
         # Create service content
         service_content = self._generate_service_content(
             description=description or f"ROS2 launch service for {launch_file}",
             exec_command=" ".join(launch_cmd),
-            env_vars=env_vars
+            env_vars=env_vars,
         )
-        
+
         # Write service file
         service_file.write_text(service_content)
-        
+
         # Reload systemd daemon
         self._run_systemctl(["daemon-reload"])
-        
+
         return service_file.exists()
-    
-    def create_node_service(self,
-                          service_name: str,
-                          package: str,
-                          executable: str,
-                          node_args: Optional[List[str]] = None,
-                          env_vars: Optional[Dict[str, str]] = None,
-                          description: Optional[str] = None) -> bool:
+
+    def create_node_service(
+        self,
+        service_name: str,
+        package: str,
+        executable: str,
+        node_args: Optional[List[str]] = None,
+        env_vars: Optional[Dict[str, str]] = None,
+        description: Optional[str] = None,
+    ) -> bool:
         """
         Create a systemd service for a ROS2 node.
-        
+
         Args:
             service_name: Name of the service (will be prefixed with 'ros2-')
             package: ROS2 package name
@@ -98,37 +149,47 @@ class SystemdServiceManager:
             node_args: Optional node arguments
             env_vars: Optional environment variables
             description: Optional service description
-            
+
         Returns:
             True if service was created successfully
         """
+        # Validate service name
+        valid, error_msg = self._validate_service_name(service_name)
+        if not valid:
+            print(f"Error: Invalid service name - {error_msg}")
+            return False
+
         full_service_name = f"{self.SERVICE_PREFIX}{service_name}"
         service_file = self.service_dir / f"{full_service_name}.service"
-        
+
+        # Check if service already exists
+        if service_file.exists():
+            print(f"Error: Service '{full_service_name}' already exists. Remove it first or choose a different name.")
+            return False
+
         # Build the node command
         node_cmd = ["ros2", "run", package, executable]
         if node_args:
             node_cmd.extend(node_args)
-        
+
         # Create service content
         service_content = self._generate_service_content(
             description=description or f"ROS2 node service for {package}/{executable}",
             exec_command=" ".join(node_cmd),
-            env_vars=env_vars
+            env_vars=env_vars,
         )
-        
+
         # Write service file
         service_file.write_text(service_content)
-        
+
         # Reload systemd daemon
         self._run_systemctl(["daemon-reload"])
-        
+
         return service_file.exists()
-    
-    def _generate_service_content(self,
-                                 description: str,
-                                 exec_command: str,
-                                 env_vars: Optional[Dict[str, str]] = None) -> str:
+
+    def _generate_service_content(
+        self, description: str, exec_command: str, env_vars: Optional[Dict[str, str]] = None
+    ) -> str:
         """Generate systemd service file content."""
         service_lines = [
             "[Unit]",
@@ -143,70 +204,119 @@ class SystemdServiceManager:
             "StandardOutput=journal",
             "StandardError=journal",
         ]
-        
+
         # Add environment variables
         if env_vars:
             for key, value in env_vars.items():
-                service_lines.append(f"Environment=\"{key}={value}\"")
-        
+                service_lines.append(f'Environment="{key}={value}"')
+
         # Add ROS2 specific environment
-        service_lines.extend([
-            "Environment=\"ROS_DOMAIN_ID=0\"",
-            "Environment=\"ROS_LOCALHOST_ONLY=0\"",
-        ])
-        
-        service_lines.extend([
-            "",
-            "[Install]",
-            "WantedBy=default.target" if self.user_mode else "WantedBy=multi-user.target",
-        ])
-        
+        service_lines.extend(
+            [
+                'Environment="ROS_DOMAIN_ID=0"',
+                'Environment="ROS_LOCALHOST_ONLY=0"',
+            ]
+        )
+
+        service_lines.extend(
+            [
+                "",
+                "[Install]",
+                "WantedBy=default.target" if self.user_mode else "WantedBy=multi-user.target",
+            ]
+        )
+
         return "\n".join(service_lines)
-    
+
     def start_service(self, service_name: str) -> Tuple[bool, str]:
         """Start a systemd service."""
         full_service_name = f"{self.SERVICE_PREFIX}{service_name}"
+
+        # Check if service exists first
+        status = self.get_service_status(service_name)
+        if not status["exists"]:
+            return False, f"Service '{full_service_name}' does not exist. Create it first with 'ros2 systemd create'."
+
         returncode, stdout, stderr = self._run_systemctl(["start", full_service_name])
-        return returncode == 0, stderr if returncode != 0 else stdout
-    
+        if returncode != 0:
+            error_msg = stderr.strip() if stderr else "Unknown error"
+            return False, f"Failed to start service: {error_msg}"
+        return True, f"Service '{full_service_name}' started successfully"
+
     def stop_service(self, service_name: str) -> Tuple[bool, str]:
         """Stop a systemd service."""
         full_service_name = f"{self.SERVICE_PREFIX}{service_name}"
+
+        # Check if service exists first
+        status = self.get_service_status(service_name)
+        if not status["exists"]:
+            return False, f"Service '{full_service_name}' does not exist."
+
         returncode, stdout, stderr = self._run_systemctl(["stop", full_service_name])
-        return returncode == 0, stderr if returncode != 0 else stdout
-    
+        if returncode != 0:
+            error_msg = stderr.strip() if stderr else "Unknown error"
+            return False, f"Failed to stop service: {error_msg}"
+        return True, f"Service '{full_service_name}' stopped successfully"
+
     def restart_service(self, service_name: str) -> Tuple[bool, str]:
         """Restart a systemd service."""
         full_service_name = f"{self.SERVICE_PREFIX}{service_name}"
+
+        # Check if service exists first
+        status = self.get_service_status(service_name)
+        if not status["exists"]:
+            return False, f"Service '{full_service_name}' does not exist. Create it first with 'ros2 systemd create'."
+
         returncode, stdout, stderr = self._run_systemctl(["restart", full_service_name])
-        return returncode == 0, stderr if returncode != 0 else stdout
-    
+        if returncode != 0:
+            error_msg = stderr.strip() if stderr else "Unknown error"
+            return False, f"Failed to restart service: {error_msg}"
+        return True, f"Service '{full_service_name}' restarted successfully"
+
     def enable_service(self, service_name: str) -> Tuple[bool, str]:
         """Enable a systemd service to start on boot."""
         full_service_name = f"{self.SERVICE_PREFIX}{service_name}"
+
+        # Check if service exists first
+        status = self.get_service_status(service_name)
+        if not status["exists"]:
+            return False, f"Service '{full_service_name}' does not exist. Create it first with 'ros2 systemd create'."
+
         returncode, stdout, stderr = self._run_systemctl(["enable", full_service_name])
-        return returncode == 0, stderr if returncode != 0 else stdout
-    
+        if returncode != 0:
+            error_msg = stderr.strip() if stderr else "Unknown error"
+            return False, f"Failed to enable service: {error_msg}"
+        return True, f"Service '{full_service_name}' enabled to start on boot"
+
     def disable_service(self, service_name: str) -> Tuple[bool, str]:
         """Disable a systemd service from starting on boot."""
         full_service_name = f"{self.SERVICE_PREFIX}{service_name}"
+
+        # Check if service exists first
+        status = self.get_service_status(service_name)
+        if not status["exists"]:
+            return False, f"Service '{full_service_name}' does not exist."
+
         returncode, stdout, stderr = self._run_systemctl(["disable", full_service_name])
-        return returncode == 0, stderr if returncode != 0 else stdout
-    
+        if returncode != 0:
+            error_msg = stderr.strip() if stderr else "Unknown error"
+            return False, f"Failed to disable service: {error_msg}"
+        return True, f"Service '{full_service_name}' disabled from starting on boot"
+
     def get_service_status(self, service_name: str) -> Dict[str, str]:
         """Get the status of a systemd service."""
         full_service_name = f"{self.SERVICE_PREFIX}{service_name}"
         returncode, stdout, stderr = self._run_systemctl(["status", full_service_name, "--no-pager"])
-        
+
         # Parse basic status info
         status_info = {
             "name": full_service_name,
             "exists": returncode != 4,  # Return code 4 means service not found
             "active": "inactive",
             "enabled": "disabled",
-            "output": stdout
+            "output": stdout,
         }
-        
+
         if status_info["exists"]:
             # Parse active state
             for line in stdout.splitlines():
@@ -220,46 +330,53 @@ class SystemdServiceManager:
                 elif "Loaded:" in line:
                     if "enabled" in line:
                         status_info["enabled"] = "enabled"
-        
+
         return status_info
-    
+
     def list_services(self) -> List[Dict[str, str]]:
         """List all ROS2 systemd services."""
         services = []
-        
-        # List all services with our prefix
+        seen_services = set()
+
+        # First, list all unit files (includes inactive services)
         returncode, stdout, stderr = self._run_systemctl(
-            ["list-units", f"{self.SERVICE_PREFIX}*", "--all", "--no-pager", "--plain"]
+            ["list-unit-files", f"{self.SERVICE_PREFIX}*.service", "--no-pager", "--plain"]
         )
-        
+
         if returncode == 0:
             lines = stdout.strip().splitlines()
             for line in lines[1:]:  # Skip header
                 if self.SERVICE_PREFIX in line:
                     parts = line.split()
-                    if len(parts) >= 4:
+                    if len(parts) >= 2:
                         service_name = parts[0].replace(".service", "").replace(self.SERVICE_PREFIX, "")
-                        services.append({
-                            "name": service_name,
-                            "status": parts[2],
-                            "active": parts[3]
-                        })
-        
+                        if service_name and service_name not in seen_services:
+                            seen_services.add(service_name)
+                            # Get status for this service
+                            status = self.get_service_status(service_name)
+                            services.append(
+                                {
+                                    "name": service_name,
+                                    "status": status.get("state", "unknown"),
+                                    "active": status.get("active_state", "inactive"),
+                                }
+                            )
+
         return services
-    
+
     def remove_service(self, service_name: str) -> Tuple[bool, str]:
         """Remove a systemd service."""
         full_service_name = f"{self.SERVICE_PREFIX}{service_name}"
         service_file = self.service_dir / f"{full_service_name}.service"
-        
+
         # Stop and disable the service first
         self.stop_service(service_name)
         self.disable_service(service_name)
-        
+
         # Remove the service file
         if service_file.exists():
             service_file.unlink()
-            
+
             # Reload systemd daemon
             self._run_systemctl(["daemon-reload"])
             return True, f"Service {full_service_name} removed successfully"

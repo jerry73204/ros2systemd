@@ -7,13 +7,29 @@
   <maintainer email="your.email@example.com">Your Name</maintainer>
   <license>Apache-2.0</license>
 
-  <depend>ros2cli</depend>
+  <!-- ros2cli is provided by the ROS2 environment -->
   <depend>python3-systemd</depend>
-  
+
+  <!-- Linting and style tests -->
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
+
+  <!-- Python development tools -->
+  <test_depend>black</test_depend>
+  <test_depend>python3-flake8</test_depend>
+  <!-- Optional: python3-isort and pylint can be installed separately -->
+
+  <!-- Testing framework -->
   <test_depend>python3-pytest</test_depend>
+  <test_depend>python3-pytest-cov</test_depend>
+
+  <!-- ROS2 packages for integration testing -->
+  <test_depend>demo_nodes_cpp</test_depend>
+  <test_depend>demo_nodes_py</test_depend>
+  <test_depend>turtlesim</test_depend>
+  <test_depend>ros2launch</test_depend>
+  <!-- launch-testing and launch-testing-ros are provided by ROS2 environment -->
 
   <export>
     <build_type>ament_python</build_type>

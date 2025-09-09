@@ -153,3 +153,7 @@ ehthumbs.db
 *.swo
 *.bak
 \#*#
+
+# Project specific
+ros2systemd_dev
+test_network_isolation.sh

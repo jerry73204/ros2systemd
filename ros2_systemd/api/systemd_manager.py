@@ -124,6 +124,7 @@ class SystemdServiceManager:
         launch_args: Optional[Dict[str, str]] = None,
         env_vars: Optional[Dict[str, str]] = None,
         description: Optional[str] = None,
+        network_isolation: bool = False,
     ) -> bool:
         """
         Create a systemd service for a ROS2 launch file.
@@ -168,6 +169,7 @@ class SystemdServiceManager:
             description=description or f"ROS2 launch service for {launch_file}",
             exec_command=" ".join(launch_cmd),
             env_vars=env_vars,
+            network_isolation=network_isolation,
         )
 
         # Write service file
@@ -186,6 +188,7 @@ class SystemdServiceManager:
         node_args: Optional[List[str]] = None,
         env_vars: Optional[Dict[str, str]] = None,
         description: Optional[str] = None,
+        network_isolation: bool = False,
     ) -> bool:
         """
         Create a systemd service for a ROS2 node.
@@ -225,6 +228,7 @@ class SystemdServiceManager:
             description=description or f"ROS2 node service for {package}/{executable}",
             exec_command=" ".join(node_cmd),
             env_vars=env_vars,
+            network_isolation=network_isolation,
         )
 
         # Write service file
@@ -236,12 +240,27 @@ class SystemdServiceManager:
         return service_file.exists()
 
     def _generate_service_content(
-        self, description: str, exec_command: str, env_vars: Optional[Dict[str, str]] = None
+        self,
+        description: str,
+        exec_command: str,
+        env_vars: Optional[Dict[str, str]] = None,
+        network_isolation: bool = False,
     ) -> str:
         """Generate systemd service file content."""
+        # Build enhanced description with environment info
+        rmw = env_vars.get("RMW_IMPLEMENTATION", "rmw_fastrtps_cpp") if env_vars else "rmw_fastrtps_cpp"
+        domain = env_vars.get("ROS_DOMAIN_ID", "0") if env_vars else "0"
+
+        # Add environment info to description
+        env_info = f" [RMW={rmw.replace('rmw_', '').replace('_cpp', '')}, Domain={domain}"
+        if network_isolation:
+            env_info += ", Isolated"
+        env_info += "]"
+        enhanced_description = description + env_info
+
         service_lines = [
             "[Unit]",
-            f"Description={description}",
+            f"Description={enhanced_description}",
             "After=network.target",
             "",
             "[Service]",
@@ -253,18 +272,20 @@ class SystemdServiceManager:
             "StandardError=journal",
         ]
 
+        # Add network isolation if requested
+        if network_isolation:
+            service_lines.append("PrivateNetwork=yes")
+
         # Add environment variables
         if env_vars:
             for key, value in env_vars.items():
                 service_lines.append(f'Environment="{key}={value}"')
 
-        # Add ROS2 specific environment
-        service_lines.extend(
-            [
-                'Environment="ROS_DOMAIN_ID=0"',
-                'Environment="ROS_LOCALHOST_ONLY=0"',
-            ]
-        )
+        # Add ROS2 specific environment (only if not already set by user)
+        if not env_vars or "ROS_DOMAIN_ID" not in env_vars:
+            service_lines.append('Environment="ROS_DOMAIN_ID=0"')
+        if not env_vars or "ROS_LOCALHOST_ONLY" not in env_vars:
+            service_lines.append('Environment="ROS_LOCALHOST_ONLY=0"')
 
         service_lines.extend(
             [

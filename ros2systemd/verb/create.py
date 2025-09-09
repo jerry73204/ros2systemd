@@ -14,17 +14,21 @@ class CreateVerb(VerbExtension):
         # Create service for a launch file from package
         ros2 systemd create talker-listener launch demo_nodes_cpp talker_listener.launch.py
 
+        # Create service for a launch file with launch arguments
+        ros2 systemd create my-robot --domain-id 42 launch my_package robot.launch.py use_sim_time:=true
+
         # Create service for a node
         ros2 systemd create my-talker node demo_nodes_cpp talker
 
+        # Create service for a node with node arguments
+        ros2 systemd create my-talker --domain-id 42 node demo_nodes_cpp talker --ros-args -p frequency:=2.0
+
         # With environment options
-        ros2 systemd create my-service node pkg exe \
-            --domain-id 42 \
-            --rmw rmw_cyclonedds_cpp \
-            --env CUSTOM_VAR=value
+        ros2 systemd create my-service --domain-id 42 --rmw rmw_cyclonedds_cpp --env CUSTOM_VAR=value \
+            node pkg exe
 
         # With network isolation (no daemon interaction)
-        ros2 systemd create isolated-node node pkg exe --network-isolation
+        ros2 systemd create isolated-node --network-isolation node pkg exe
     """
 
     def add_arguments(self, parser, cli_name):
@@ -37,20 +41,24 @@ Examples:
   # Create service for a launch file from package
   ros2 systemd create talker-listener launch demo_nodes_cpp talker_listener.launch.py
 
+  # Create service for a launch file with launch arguments
+  ros2 systemd create my-robot --domain-id 42 launch my_package robot.launch.py use_sim_time:=true
+
   # Create service for a node
   ros2 systemd create my-talker node demo_nodes_cpp talker
 
+  # Create service for a node with node arguments
+  ros2 systemd create my-talker --domain-id 42 node demo_nodes_cpp talker --ros-args -p frequency:=2.0
+
   # With environment options
-  ros2 systemd create my-service node pkg exe \\
-      --domain-id 42 \\
-      --rmw rmw_cyclonedds_cpp \\
-      --env CUSTOM_VAR=value
+  ros2 systemd create my-service --domain-id 42 --rmw rmw_cyclonedds_cpp --env CUSTOM_VAR=value \\
+      node pkg exe
 
   # With network isolation (no daemon interaction)
-  ros2 systemd create isolated-node node pkg exe --network-isolation
+  ros2 systemd create isolated-node --network-isolation node pkg exe
 
   # Create system-wide service (requires sudo)
-  ros2 systemd create my-system-service node pkg exe --system
+  ros2 systemd create my-system-service --system node pkg exe
 
 Environment Variables:
   --domain-id N     Sets ROS_DOMAIN_ID=N (valid range: 0-232)
@@ -72,64 +80,71 @@ Network Isolation:
   - Services with different RMW implementations that shouldn't conflict
 """
         parser.formatter_class = argparse.RawDescriptionHelpFormatter
+
+        # Service name comes first
         parser.add_argument("service_name", help="Name for the systemd service (will be prefixed with ros2-)")
 
-        # Create subparsers for launch and node
-        subparsers = parser.add_subparsers(dest="service_type", help="Type of service to create")
-
-        # Launch file parser
-        launch_parser = subparsers.add_parser("launch", help="Create service for ROS2 launch file")
-        launch_parser.add_argument(
-            "package_or_path", help="Package name (e.g., 'turtlesim') or full path to launch file"
+        # Systemd-specific flags (before the subcommand)
+        parser.add_argument(
+            "--env", nargs="*", help="Additional environment variables in KEY=VALUE format (e.g., 'FOO=bar')"
         )
-        launch_parser.add_argument(
-            "launch_file", nargs="?", help="Launch file name (e.g., 'multisim.launch.py') when package name is provided"
+        parser.add_argument(
+            "--domain-id",
+            type=int,
+            metavar="ID",
+            help="ROS domain ID (0-232), sets ROS_DOMAIN_ID (uses current shell value if not specified)",
         )
-        launch_parser.add_argument(
-            "--launch-args", nargs="*", help="Launch arguments in key:=value format (e.g., 'use_sim_time:=true')"
+        parser.add_argument(
+            "--rmw",
+            metavar="IMPL",
+            help="RMW implementation, e.g., rmw_fastrtps_cpp (uses current shell value if not specified)",
+        )
+        parser.add_argument(
+            "--localhost-only",
+            choices=["0", "1"],
+            help="Set ROS_LOCALHOST_ONLY (0=disabled, 1=enabled, uses current shell value if not specified)",
+        )
+        parser.add_argument(
+            "--network-isolation",
+            action="store_true",
+            help="Enable network isolation - service runs in isolated network namespace (no daemon interaction)",
+        )
+        parser.add_argument("--description", metavar="TEXT", help="Custom service description text")
+        parser.add_argument(
+            "--system",
+            action="store_true",
+            help="Create system-wide service instead of user service (requires sudo)",
         )
 
-        # Node parser
-        node_parser = subparsers.add_parser("node", help="Create service for ROS2 node")
-        node_parser.add_argument("package", help="ROS2 package name (e.g., 'demo_nodes_cpp')")
-        node_parser.add_argument("executable", help="Executable name in the package (e.g., 'talker')")
-        node_parser.add_argument("--node-args", nargs="*", help="Additional node arguments")
+        # Service type (launch or node)
+        parser.add_argument(
+            "service_type", choices=["launch", "node"], help="Type of service to create (launch or node)"
+        )
 
-        # Common arguments
-        for p in [launch_parser, node_parser]:
-            p.add_argument(
-                "--env", nargs="*", help="Additional environment variables in KEY=VALUE format (e.g., 'FOO=bar')"
-            )
-            p.add_argument(
-                "--domain-id",
-                type=int,
-                metavar="ID",
-                help="ROS domain ID (0-232), sets ROS_DOMAIN_ID (uses current shell value if not specified)",
-            )
-            p.add_argument(
-                "--rmw",
-                metavar="IMPL",
-                help="RMW implementation, e.g., rmw_fastrtps_cpp (uses current shell value if not specified)",
-            )
-            p.add_argument(
-                "--localhost-only",
-                choices=["0", "1"],
-                help="Set ROS_LOCALHOST_ONLY (0=disabled, 1=enabled, uses current shell value if not specified)",
-            )
-            p.add_argument(
-                "--network-isolation",
-                action="store_true",
-                help="Enable network isolation - service runs in isolated network namespace (no daemon interaction)",
-            )
-            p.add_argument("--description", metavar="TEXT", help="Custom service description text")
-            p.add_argument(
-                "--system",
-                action="store_true",
-                help="Create system-wide service instead of user service (requires sudo)",
-            )
+        # Package/path specification
+        parser.add_argument(
+            "package_or_path", help="For 'launch': package name or /full/path/to/launch.py\n" "For 'node': package name"
+        )
+
+        # Optional second positional for executable/launch file
+        parser.add_argument(
+            "file_or_executable",
+            nargs="?",
+            help="For 'launch': launch file name (when package name is provided)\n"
+            "For 'node': executable name (required)",
+        )
+
+        # Remaining arguments are either launch args (KEY:=VALUE) or node args
+        parser.add_argument(
+            "extra_args",
+            nargs="*",
+            help="For 'launch': launch arguments in KEY:=VALUE format\n"
+            "For 'node': additional arguments to pass to the node",
+        )
 
     def main(self, *, args):
         import os
+        from pathlib import Path
 
         manager = SystemdServiceManager(user_mode=not args.system)
 
@@ -142,68 +157,75 @@ Network Isolation:
                     env_vars[key] = value
 
         # Handle ROS_DOMAIN_ID - use shell value if not specified
-        if hasattr(args, "domain_id") and args.domain_id is not None:
+        if args.domain_id is not None:
             env_vars["ROS_DOMAIN_ID"] = str(args.domain_id)
         elif "ROS_DOMAIN_ID" not in env_vars:
             # Copy from shell environment if available, otherwise use default
             env_vars["ROS_DOMAIN_ID"] = os.environ.get("ROS_DOMAIN_ID", "0")
 
         # Handle RMW_IMPLEMENTATION - use shell value if not specified
-        if hasattr(args, "rmw") and args.rmw:
+        if args.rmw:
             env_vars["RMW_IMPLEMENTATION"] = args.rmw
         elif "RMW_IMPLEMENTATION" not in env_vars:
             # Copy from shell environment if available, otherwise use default
             env_vars["RMW_IMPLEMENTATION"] = os.environ.get("RMW_IMPLEMENTATION", "rmw_fastrtps_cpp")
+
         # Handle ROS_LOCALHOST_ONLY - use shell value if not specified
-        if hasattr(args, "localhost_only") and args.localhost_only:
+        if args.localhost_only:
             env_vars["ROS_LOCALHOST_ONLY"] = args.localhost_only
         elif "ROS_LOCALHOST_ONLY" not in env_vars:
             # Copy from shell environment if available, otherwise use default
             env_vars["ROS_LOCALHOST_ONLY"] = os.environ.get("ROS_LOCALHOST_ONLY", "0")
 
+        # Warn about network isolation limitations
+        if args.network_isolation and not args.system:
+            print("⚠️  Warning: Network isolation (PrivateNetwork=yes) requires root privileges.")
+            print("   It will NOT work with user services. Consider using --system flag with sudo,")
+            print("   or use ROS_LOCALHOST_ONLY=1 / different ROS_DOMAIN_ID for isolation.")
+            print()
+
         if args.service_type == "launch":
             # Determine launch file path
-            if args.launch_file:
+            if args.file_or_executable:
                 # Package name + launch file format
-                resolved_path = manager._resolve_package_path(args.package_or_path, args.launch_file)
+                package_name = args.package_or_path
+                launch_file = args.file_or_executable
+                resolved_path = manager._resolve_package_path(package_name, launch_file)
                 if resolved_path:
                     launch_file_path = str(resolved_path)
                 else:
-                    print(f"Error: Could not find launch file '{args.launch_file}' in package '{args.package_or_path}'")
+                    print(f"Error: Could not find launch file '{launch_file}' in package '{package_name}'")
                     return 1
             else:
-                # Direct path format or check if it's a package name with common launch file
-                from pathlib import Path
+                # Single argument - either full path or package name
+                path_or_package = args.package_or_path
 
-                if Path(args.package_or_path).exists():
-                    launch_file_path = args.package_or_path
+                if Path(path_or_package).exists():
+                    # It's a full path
+                    launch_file_path = path_or_package
                 else:
-                    # Check if it's just a package name - look for common launch files
-                    for common_name in ["launch.py", "default.launch.py", f"{args.package_or_path}.launch.py"]:
-                        resolved_path = manager._resolve_package_path(args.package_or_path, common_name)
+                    # It's a package name - look for common launch files
+                    for common_name in ["launch.py", "default.launch.py", f"{path_or_package}.launch.py"]:
+                        resolved_path = manager._resolve_package_path(path_or_package, common_name)
                         if resolved_path:
                             launch_file_path = str(resolved_path)
                             print(f"Found launch file: {launch_file_path}")
                             break
                     else:
-                        print(f"Error: '{args.package_or_path}' is not a valid file path or package")
+                        print(
+                            f"Error: '{path_or_package}' is not a valid file path or package with default launch file"
+                        )
                         return 1
 
-            # Parse launch arguments
+            # Parse launch arguments from extra_args
             launch_args = {}
-            if args.launch_args:
-                for arg in args.launch_args:
+            if args.extra_args:
+                for arg in args.extra_args:
                     if ":=" in arg:
                         key, value = arg.split(":=", 1)
                         launch_args[key] = value
-
-            # Warn about network isolation limitations
-            network_isolation = args.network_isolation if hasattr(args, "network_isolation") else False
-            if network_isolation and not args.system:
-                print("⚠️  Warning: Network isolation (PrivateNetwork=yes) requires root privileges.")
-                print("   It will NOT work with user services. Consider using --system flag with sudo,")
-                print("   or use ROS_LOCALHOST_ONLY=1 / different ROS_DOMAIN_ID for isolation.")
-                print()
+                    else:
+                        print(f"Warning: Ignoring invalid launch argument '{arg}' (expected KEY:=VALUE format)")
 
             # Create launch service
             success = manager.create_launch_service(
@@ -212,12 +234,12 @@ Network Isolation:
                 launch_args=launch_args,
                 env_vars=env_vars,
                 description=args.description,
-                network_isolation=network_isolation,
+                network_isolation=args.network_isolation,
             )
 
             if success:
                 print(f"Successfully created service 'ros2-{args.service_name}' for launch file '{launch_file_path}'")
-                self._print_environment_info(env_vars, network_isolation)
+                self._print_environment_info(env_vars, args.network_isolation)
                 print(f"Use 'ros2 systemd start {args.service_name}' to start the service")
                 return 0
             else:
@@ -225,39 +247,35 @@ Network Isolation:
                 return 1
 
         elif args.service_type == "node":
-            # Warn about network isolation limitations
-            network_isolation = args.network_isolation if hasattr(args, "network_isolation") else False
-            if network_isolation and not args.system:
-                print("⚠️  Warning: Network isolation (PrivateNetwork=yes) requires root privileges.")
-                print("   It will NOT work with user services. Consider using --system flag with sudo,")
-                print("   or use ROS_LOCALHOST_ONLY=1 / different ROS_DOMAIN_ID for isolation.")
-                print()
+            # For node, executable is required
+            if not args.file_or_executable:
+                print("Error: For node type, executable name is required")
+                print("Usage: ros2 systemd create NAME [FLAGS...] node PACKAGE EXECUTABLE [ARGS...]")
+                return 1
+
+            package = args.package_or_path
+            executable = args.file_or_executable
+            node_args = args.extra_args  # All extra args are passed to the node
 
             # Create node service
             success = manager.create_node_service(
                 service_name=args.service_name,
-                package=args.package,
-                executable=args.executable,
-                node_args=args.node_args,
+                package=package,
+                executable=executable,
+                node_args=node_args,
                 env_vars=env_vars,
                 description=args.description,
-                network_isolation=network_isolation,
+                network_isolation=args.network_isolation,
             )
 
             if success:
-                print(
-                    f"Successfully created service 'ros2-{args.service_name}' "
-                    f"for node '{args.package}/{args.executable}'"
-                )
-                self._print_environment_info(env_vars, network_isolation)
+                print(f"Successfully created service 'ros2-{args.service_name}' " f"for node '{package}/{executable}'")
+                self._print_environment_info(env_vars, args.network_isolation)
                 print(f"Use 'ros2 systemd start {args.service_name}' to start the service")
                 return 0
             else:
                 print(f"Failed to create service 'ros2-{args.service_name}'")
                 return 1
-        else:
-            print("Please specify 'launch' or 'node' as the service type")
-            return 1
 
     def _print_environment_info(self, env_vars, network_isolation):
         """Print information about the environment variables set for the service."""

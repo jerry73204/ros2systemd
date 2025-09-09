@@ -13,7 +13,8 @@ class CreateVerb(VerbExtension):
 
         # Launch file parser
         launch_parser = subparsers.add_parser("launch", help="Create service for launch file")
-        launch_parser.add_argument("launch_file", help="Path to the ROS2 launch file")
+        launch_parser.add_argument("package_or_path", help="Package name or path to launch file")
+        launch_parser.add_argument("launch_file", nargs="?", help="Launch file name (when package name is provided)")
         launch_parser.add_argument("--launch-args", nargs="*", help="Launch arguments in key:=value format")
 
         # Node parser
@@ -42,6 +43,33 @@ class CreateVerb(VerbExtension):
                     env_vars[key] = value
 
         if args.service_type == "launch":
+            # Determine launch file path
+            if args.launch_file:
+                # Package name + launch file format
+                resolved_path = manager._resolve_package_path(args.package_or_path, args.launch_file)
+                if resolved_path:
+                    launch_file_path = str(resolved_path)
+                else:
+                    print(f"Error: Could not find launch file '{args.launch_file}' in package '{args.package_or_path}'")
+                    return 1
+            else:
+                # Direct path format or check if it's a package name with common launch file
+                from pathlib import Path
+
+                if Path(args.package_or_path).exists():
+                    launch_file_path = args.package_or_path
+                else:
+                    # Check if it's just a package name - look for common launch files
+                    for common_name in ["launch.py", "default.launch.py", f"{args.package_or_path}.launch.py"]:
+                        resolved_path = manager._resolve_package_path(args.package_or_path, common_name)
+                        if resolved_path:
+                            launch_file_path = str(resolved_path)
+                            print(f"Found launch file: {launch_file_path}")
+                            break
+                    else:
+                        print(f"Error: '{args.package_or_path}' is not a valid file path or package")
+                        return 1
+
             # Parse launch arguments
             launch_args = {}
             if args.launch_args:
@@ -53,14 +81,14 @@ class CreateVerb(VerbExtension):
             # Create launch service
             success = manager.create_launch_service(
                 service_name=args.service_name,
-                launch_file=args.launch_file,
+                launch_file=launch_file_path,
                 launch_args=launch_args,
                 env_vars=env_vars,
                 description=args.description,
             )
 
             if success:
-                print(f"Successfully created service 'ros2-{args.service_name}' for launch file '{args.launch_file}'")
+                print(f"Successfully created service 'ros2-{args.service_name}' for launch file '{launch_file_path}'")
                 print(f"Use 'ros2 systemd start {args.service_name}' to start the service")
                 return 0
             else:

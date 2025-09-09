@@ -1,3 +1,4 @@
+import os
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -22,6 +23,53 @@ class SystemdServiceManager:
 
         if user_mode and not self.service_dir.exists():
             self.service_dir.mkdir(parents=True, exist_ok=True)
+
+    def _resolve_package_path(self, package_name: str, file_name: str) -> Optional[Path]:
+        """
+        Resolve a package name and file to its full path.
+
+        Args:
+            package_name: ROS2 package name
+            file_name: File name within the package
+
+        Returns:
+            Full path to the file, or None if not found
+        """
+        try:
+            # Try to import ament_index_python if available
+            from ament_index_python.packages import get_package_share_directory
+
+            package_dir = get_package_share_directory(package_name)
+
+            # Search for the file in common locations
+            search_paths = [
+                Path(package_dir) / file_name,
+                Path(package_dir) / "launch" / file_name,
+                Path(package_dir) / "launch" / "topics" / file_name,
+                Path(package_dir) / "launch" / "services" / file_name,
+            ]
+
+            for path in search_paths:
+                if path.exists():
+                    return path
+
+        except ImportError:
+            # Fallback: try to find in /opt/ros/humble/share
+            ros_distro = os.environ.get("ROS_DISTRO", "humble")
+            package_dir = Path(f"/opt/ros/{ros_distro}/share") / package_name
+            if package_dir.exists():
+                search_paths = [
+                    package_dir / file_name,
+                    package_dir / "launch" / file_name,
+                    package_dir / "launch" / "topics" / file_name,
+                    package_dir / "launch" / "services" / file_name,
+                ]
+
+                for path in search_paths:
+                    if path.exists():
+                        return path
+
+        return None
 
     def _get_systemctl_cmd(self, command: List[str]) -> List[str]:
         """Get the appropriate systemctl command based on mode."""

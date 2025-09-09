@@ -35,9 +35,10 @@ make build
 ```
 
 ### Installation Methods
-1. **pip install from source**: `pip install .`
-2. **pip install from GitHub**: `pip install git+https://github.com/jerry73204/ros2systemd.git`
+1. **pip install from GitHub** (recommended): `pip install git+https://github.com/jerry73204/ros2systemd.git`
+2. **pip install from source**: `pip install .`
 3. **Colcon build**: `colcon build --packages-select ros2systemd`
+4. **pip install from PyPI** (when published): `pip install ros2systemd`
 
 ## Important Technical Details
 
@@ -124,6 +125,8 @@ ros2 systemd remove test
 - Added warning for network isolation with user services
 - Added environment variable inheritance from shell
 - Removed confirmation prompt from `ros2 systemd remove` command
+- Refactored CLI to use Option 3 pattern: systemd flags before launch/node subcommand
+- Updated README to recommend GitHub installation before PyPI publication
 
 ## Contact
 - GitHub: https://github.com/jerry73204/ros2systemd

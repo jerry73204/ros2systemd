@@ -42,6 +42,7 @@ setup(
             "remove = ros2_systemd.verb.remove:RemoveVerb",
             "template = ros2_systemd.verb.template:TemplateVerb",
             "logs = ros2_systemd.verb.logs:LogsVerb",
+            "diagnose = ros2_systemd.verb.diagnose:DiagnoseVerb",
         ],
     },
 )

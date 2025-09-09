@@ -1,0 +1,8 @@
+include README.md
+include LICENSE
+include package.xml
+include resource/ros2systemd
+recursive-exclude * __pycache__
+recursive-exclude * *.pyc
+recursive-exclude * *.pyo
+recursive-exclude tests *

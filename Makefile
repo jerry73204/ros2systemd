@@ -74,7 +74,7 @@ lint: check-env
 	@if ! command -v flake8 >/dev/null 2>&1; then \
 		echo "Error: flake8 not found."; \
 		echo "Install dependencies with: make deps"; \
-		echo "Or manually: sudo apt install python3-flake8"; \
+		echo "Or manually: sudo apt install flake8"; \
 		exit 1; \
 	fi
 	@$(PYTHON) -m flake8 ros2systemd --max-line-length=120 \

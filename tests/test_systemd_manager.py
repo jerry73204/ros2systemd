@@ -18,7 +18,7 @@
 import unittest
 from pathlib import Path
 
-from ros2_systemd.api.systemd_manager import SystemdServiceManager
+from ros2systemd.api.systemd_manager import SystemdServiceManager
 
 
 class TestSystemdServiceManager(unittest.TestCase):

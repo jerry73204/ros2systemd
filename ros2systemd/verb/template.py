@@ -1,6 +1,6 @@
-from ros2_systemd.api.systemd_manager import SystemdServiceManager
-from ros2_systemd.templates import get_template, get_template_info, list_templates
-from ros2_systemd.verb import VerbExtension
+from ros2systemd.api.systemd_manager import SystemdServiceManager
+from ros2systemd.templates import get_template, get_template_info, list_templates
+from ros2systemd.verb import VerbExtension
 
 
 class TemplateVerb(VerbExtension):

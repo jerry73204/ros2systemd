@@ -6,7 +6,7 @@ class SystemdCommand(CommandExtension):
 
     def add_arguments(self, parser, cli_name):
         self._subparser = parser
-        add_subparsers_on_demand(parser, cli_name, "_verb", "ros2_systemd.verb", required=False)
+        add_subparsers_on_demand(parser, cli_name, "_verb", "ros2systemd.verb", required=False)
 
     def main(self, *, parser, args):
         if not hasattr(args, "_verb"):

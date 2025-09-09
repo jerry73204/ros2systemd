@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = "ros2_systemd"
+package_name = "ros2systemd"
 
 setup(
     name=package_name,

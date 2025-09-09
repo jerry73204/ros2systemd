@@ -17,7 +17,7 @@
 
 import unittest
 
-from ros2_systemd.templates import get_template, get_template_info, list_templates
+from ros2systemd.templates import get_template, get_template_info, list_templates
 
 
 class TestTemplates(unittest.TestCase):

@@ -2,7 +2,7 @@ from ros2cli.plugin_system import PLUGIN_SYSTEM_VERSION, satisfies_version
 
 
 class VerbExtension:
-    """Base class for ros2_systemd verb extensions."""
+    """Base class for ros2systemd verb extensions."""
 
     NAME = None
     EXTENSION_POINT_VERSION = "0.1"

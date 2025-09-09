@@ -1,5 +1,5 @@
-from ros2_systemd.api.systemd_manager import SystemdServiceManager
-from ros2_systemd.verb import VerbExtension
+from ros2systemd.api.systemd_manager import SystemdServiceManager
+from ros2systemd.verb import VerbExtension
 
 
 class StartVerb(VerbExtension):

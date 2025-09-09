@@ -62,7 +62,7 @@ clean:
 	@echo "Cleaning build artifacts..."
 	@rm -rf build install log
 	@rm -rf __pycache__ */__pycache__ */*/__pycache__
-	@rm -f ros2_systemd_dev
+	@rm -f ros2systemd_dev
 	@find . -name "*.pyc" -delete
 	@find . -name "*.pyo" -delete
 	@find . -name ".pytest_cache" -type d -exec rm -rf {} + 2>/dev/null || true
@@ -77,7 +77,7 @@ lint: check-env
 		echo "Or manually: sudo apt install python3-flake8"; \
 		exit 1; \
 	fi
-	@$(PYTHON) -m flake8 ros2_systemd --max-line-length=120 \
+	@$(PYTHON) -m flake8 ros2systemd --max-line-length=120 \
 		--exclude=__pycache__ \
 		--extend-ignore=Q000,D100,D101,D102,D103,D104,D105,D107
 
@@ -90,7 +90,7 @@ format: check-env
 		echo "Or manually: sudo apt install black"; \
 		exit 1; \
 	fi
-	@$(PYTHON) -m black ros2_systemd tests --line-length=120
+	@$(PYTHON) -m black ros2systemd tests --line-length=120
 
 .PHONY: check-style
 check-style: check-env
@@ -99,12 +99,12 @@ check-style: check-env
 		echo "Note: isort not found. Install with: sudo apt install python3-isort"; \
 	else \
 		echo "Checking import order with isort..."; \
-		$(PYTHON) -m isort ros2_systemd tests --check-only --diff; \
+		$(PYTHON) -m isort ros2systemd tests --check-only --diff; \
 	fi
 	@if ! command -v pylint >/dev/null 2>&1; then \
 		echo "Note: pylint not found. Install with: sudo apt install pylint"; \
 	else \
 		echo "Running pylint..."; \
-		$(PYTHON) -m pylint ros2_systemd --rcfile=.pylintrc 2>/dev/null || \
-			$(PYTHON) -m pylint ros2_systemd; \
+		$(PYTHON) -m pylint ros2systemd --rcfile=.pylintrc 2>/dev/null || \
+			$(PYTHON) -m pylint ros2systemd; \
 	fi

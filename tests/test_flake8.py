@@ -30,7 +30,7 @@ def test_flake8():
             "python3",
             "-m",
             "flake8",
-            "ros2_systemd",
+            "ros2systemd",
             "--max-line-length=120",
             "--exclude=__pycache__",
             "--extend-ignore=Q000,D100,D101,D102,D103,D104,D105,D107",

@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from ros2_systemd.api.systemd_manager import SystemdServiceManager
+from ros2systemd.api.systemd_manager import SystemdServiceManager
 
 
 class TestRos2SystemdIntegration(unittest.TestCase):

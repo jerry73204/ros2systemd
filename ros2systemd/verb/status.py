@@ -1,6 +1,6 @@
 import subprocess
 
-from ros2_systemd.verb import VerbExtension
+from ros2systemd.verb import VerbExtension
 
 
 class StatusVerb(VerbExtension):

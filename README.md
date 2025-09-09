@@ -6,9 +6,9 @@ A ROS2 command extension for managing ROS2 launches and nodes as systemd service
 
 ### Installation
 
-From PyPI (recommended):
+From GitHub (recommended):
 ```bash
-pip install ros2systemd
+pip install git+https://github.com/jerry73204/ros2systemd.git
 ```
 
 From source:

@@ -6,25 +6,22 @@ A ROS2 command extension for managing ROS2 launches and nodes as systemd service
 
 ### Installation
 
-From GitHub (recommended):
+From GitHub release (recommended):
+
+Download the wheel file from the [v0.2.0 release page](https://github.com/jerry73204/ros2systemd/releases/tag/v0.2.0) and install:
+
 ```bash
-pip install git+https://github.com/jerry73204/ros2systemd.git
+pip install https://github.com/jerry73204/ros2systemd/releases/download/v0.2.0/ros2systemd-0.2.0-py3-none-any.whl
 ```
 
 From source:
 ```bash
+# Activate the ROS environment
+source /opt/ros/humble/setup.bash
+
 git clone https://github.com/jerry73204/ros2systemd.git
 cd ros2systemd
 pip install .
-```
-
-For ROS2 workspace development:
-```bash
-cd ~/ros2_ws/src
-git clone https://github.com/jerry73204/ros2systemd.git
-cd ..
-colcon build --packages-select ros2systemd
-source install/setup.bash
 ```
 
 ### Basic Example
@@ -34,6 +31,10 @@ Here's a complete workflow to manage a ROS2 node as a systemd service:
 ```bash
 # 1. Create a service for the demo talker node
 ros2 systemd create talker-demo node demo_nodes_cpp talker
+
+# Create a node with ROS arguments (requires -- delimiter)
+ros2 systemd create talker-custom node demo_nodes_cpp talker -- \
+    --ros-args -p frequency:=2.0 -p topic_name:=custom_chatter
 
 # 2. List all ROS2 systemd services
 ros2 systemd list
@@ -68,6 +69,11 @@ Managing a launch file with multiple nodes:
 # Create service from a launch file
 ros2 systemd create robot-bringup launch demo_nodes_cpp talker_listener.launch.py
 
+# Create service from launch file with arguments
+ros2 systemd create nav-stack launch nav2_bringup navigation_launch.py -- \
+    use_sim_time:=true \
+    params_file:=/path/to/params.yaml
+
 # Start and enable for automatic startup
 ros2 systemd start robot-bringup
 ros2 systemd enable robot-bringup
@@ -88,11 +94,20 @@ ros2 systemd create my-robot node my_package my_node \
     --rmw rmw_cyclonedds_cpp \
     --localhost-only 1
 
-# The service inherits your current environment if not specified
+# The service automatically inherits your current ROS environment
 export ROS_DOMAIN_ID=10
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 ros2 systemd create another-robot node my_package my_node
-# Service will use domain ID 10 and FastRTPS from your shell
+# Service will capture and use domain ID 10 and FastRTPS from your shell
+
+# Use custom environment setup scripts
+ros2 systemd create workspace-robot --source ~/my_workspace/install/setup.bash \
+    node my_package my_node
+
+# Disable environment capture and use explicit setup
+ros2 systemd create minimal-robot --no-capture-env \
+    --source /opt/ros/humble/setup.bash \
+    node demo_nodes_cpp talker
 ```
 
 ## Command Reference
@@ -113,9 +128,19 @@ ros2 systemd create <service-name> launch <package_or_path> [launch-file] [optio
 - `--domain-id N`: Set ROS_DOMAIN_ID (0-232)
 - `--rmw IMPL`: Set RMW implementation (e.g., rmw_fastrtps_cpp)
 - `--localhost-only {0,1}`: Set ROS_LOCALHOST_ONLY
-- `--env KEY=VALUE`: Add custom environment variables
+- `--env KEY=VALUE`: Add custom environment variables (can be used multiple times)
+- `--copy-env KEY`: Copy specific environment variable from current shell
+- `--source PATH`: Source a setup script before running (can be used multiple times)
+- `--no-capture-env`: Don't automatically capture ROS/Ament environment variables
 - `--system`: Create system-wide service (requires sudo)
 - `--network-isolation`: Enable network isolation (only works with --system)
+- `--no-color`: Disable colored output (for status and logs commands)
+- `--description TEXT`: Custom service description
+
+**Note**: Extra arguments containing flags starting with dashes require `--` delimiter:
+```bash
+ros2 systemd create my-node node demo_nodes_cpp talker -- --ros-args -p frequency:=2.0
+```
 
 ### Service Management
 
@@ -131,11 +156,13 @@ ros2 systemd disable <service-name>  # Don't start on boot
 
 # Check service status
 ros2 systemd status <service-name>
+ros2 systemd status <service-name> --no-color   # Disable colors
 
 # View logs
 ros2 systemd logs <service-name>
 ros2 systemd logs <service-name> --follow    # Real-time logs
 ros2 systemd logs <service-name> --lines 50   # Last 50 lines
+ros2 systemd logs <service-name> --no-color   # Disable colors
 
 # List all services
 ros2 systemd list
@@ -156,7 +183,7 @@ Generate service templates:
 # Show template for a node service
 ros2 systemd template node my_package my_node
 
-# Show template for a launch service  
+# Show template for a launch service
 ros2 systemd template launch my_package my_launch.py
 
 # Save template to file
@@ -208,13 +235,17 @@ export RMW_IMPLEMENTATION=<your-rmw>
 ros2 daemon start
 ```
 
-### Custom Launch Arguments
+### ROS Arguments with Nodes
 
-Pass arguments to launch files:
+Pass ROS arguments to nodes (requires `--` delimiter):
 ```bash
-ros2 systemd create nav-stack launch nav2_bringup bringup_launch.py \
-    --launch-args use_sim_time:=true \
-    --launch-args params_file:=/path/to/params.yaml
+# Node with ROS parameters
+ros2 systemd create param-talker node demo_nodes_cpp talker -- \
+    --ros-args -p frequency:=10.0 -p topic_name:=my_topic
+
+# Node with remapping
+ros2 systemd create remapped-listener node demo_nodes_cpp listener -- \
+    --ros-args -r chatter:=my_topic
 ```
 
 ## Troubleshooting

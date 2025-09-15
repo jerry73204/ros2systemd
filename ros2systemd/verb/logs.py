@@ -1,4 +1,5 @@
-import subprocess
+import os
+import sys
 
 from ros2systemd.api.systemd_manager import SystemdServiceManager
 from ros2systemd.verb import VerbExtension
@@ -16,6 +17,7 @@ class LogsVerb(VerbExtension):
         parser.add_argument("-f", "--follow", action="store_true", help="Follow log output (like tail -f)")
         parser.add_argument("--since", help='Show logs since time (e.g., "1 hour ago", "2023-01-01")')
         parser.add_argument("--until", help="Show logs until time")
+        parser.add_argument("--no-color", action="store_true", help="Disable colored output")
 
     def main(self, *, args):
         manager = SystemdServiceManager(user_mode=not args.system)
@@ -26,41 +28,52 @@ class LogsVerb(VerbExtension):
             print(f"Service 'ros2-{args.service_name}' does not exist")
             return 1
 
-        # Build journalctl command
-        cmd = ["journalctl"]
+        # Build journalctl command arguments
+        cmd_args = ["journalctl"]
 
         # Add user/system flag
         if not args.system:
-            cmd.append("--user")
+            cmd_args.append("--user")
 
         # Add unit filter
-        cmd.extend(["-u", f"ros2-{args.service_name}"])
+        cmd_args.extend(["-u", f"ros2-{args.service_name}"])
 
         # Add line limit (unless following)
         if not args.follow:
-            cmd.extend(["-n", str(args.lines)])
+            cmd_args.extend(["-n", str(args.lines)])
 
         # Add follow flag
         if args.follow:
-            cmd.append("-f")
-            print(f"Following logs for 'ros2-{args.service_name}' (Ctrl+C to stop)...")
+            cmd_args.append("-f")
+            # Print info message before exec
+            if not args.no_color and sys.stdout.isatty():
+                print(f"\033[1;34mFollowing logs for 'ros2-{args.service_name}' (Ctrl+C to stop)...\033[0m")
+            else:
+                print(f"Following logs for 'ros2-{args.service_name}' (Ctrl+C to stop)...")
 
         # Add time filters
         if args.since:
-            cmd.extend(["--since", args.since])
+            cmd_args.extend(["--since", args.since])
         if args.until:
-            cmd.extend(["--until", args.until])
+            cmd_args.extend(["--until", args.until])
 
-        # Add color output if terminal supports it
-        cmd.append("--no-pager")
+        # Always add --no-pager to prevent paging and allow colors
+        cmd_args.append("--no-pager")
 
+        # Setup environment for color control
+        if args.no_color:
+            # Disable colors by setting SYSTEMD_COLORS=0
+            os.environ["SYSTEMD_COLORS"] = "0"
+        else:
+            # Enable colors if terminal supports it (journalctl will auto-detect)
+            # Remove any existing SYSTEMD_COLORS=0 to let journalctl decide
+            if os.environ.get("SYSTEMD_COLORS") == "0":
+                del os.environ["SYSTEMD_COLORS"]
+
+        # Use exec to replace current process with journalctl
+        # This allows journalctl to have full terminal control for colors, follow mode, etc.
         try:
-            # Run journalctl
-            result = subprocess.run(cmd, text=True)
-            return result.returncode
-        except KeyboardInterrupt:
-            print("\nStopped following logs")
-            return 0
-        except Exception as e:  # noqa: B902
-            print(f"Error viewing logs: {e}")
+            os.execvp("journalctl", cmd_args)
+        except OSError as e:
+            print(f"Error executing journalctl: {e}")
             return 1

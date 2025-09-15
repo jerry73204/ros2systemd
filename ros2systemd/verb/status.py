@@ -1,4 +1,5 @@
-import subprocess
+import os
+import sys
 
 from ros2systemd.verb import VerbExtension
 
@@ -9,22 +10,29 @@ class StatusVerb(VerbExtension):
     def add_arguments(self, parser, cli_name):
         parser.add_argument("service_name", help="Name of the service to check (without ros2- prefix)")
         parser.add_argument("--system", action="store_true", help="Check system service instead of user service")
+        parser.add_argument("--no-color", action="store_true", help="Disable colored output")
 
     def main(self, *, args):
-        # Build systemctl status command
-        cmd = ["systemctl"]
+        # Build systemctl status command arguments
+        cmd_args = ["systemctl"]
         if not args.system:
-            cmd.append("--user")
-        cmd.extend(["status", f"ros2-{args.service_name}", "--no-pager"])
+            cmd_args.append("--user")
+        cmd_args.extend(["status", f"ros2-{args.service_name}", "--no-pager"])
 
-        # Run and print output directly
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        # Setup environment for color control
+        if args.no_color:
+            # Disable colors by setting SYSTEMD_COLORS=0
+            os.environ["SYSTEMD_COLORS"] = "0"
+        else:
+            # Enable colors if terminal supports it (systemctl will auto-detect)
+            # Remove any existing SYSTEMD_COLORS=0 to let systemctl decide
+            if os.environ.get("SYSTEMD_COLORS") == "0":
+                del os.environ["SYSTEMD_COLORS"]
 
-        # Print the output regardless of return code
-        # systemctl status returns non-zero for stopped services but still shows info
-        print(result.stdout)
-        if result.stderr:
-            print(result.stderr)
-
-        # Return 0 for successful command execution (not service status)
-        return 0
+        # Use exec to replace current process with systemctl
+        # This allows systemctl to have full terminal control for colors, paging, etc.
+        try:
+            os.execvp("systemctl", cmd_args)
+        except OSError as e:
+            print(f"Error executing systemctl: {e}")
+            return 1

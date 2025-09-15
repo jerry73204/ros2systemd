@@ -123,6 +123,7 @@ class SystemdServiceManager:
         launch_file: str,
         launch_args: Optional[Dict[str, str]] = None,
         env_vars: Optional[Dict[str, str]] = None,
+        source_scripts: Optional[List[str]] = None,
         description: Optional[str] = None,
         network_isolation: bool = False,
     ) -> bool:
@@ -169,6 +170,7 @@ class SystemdServiceManager:
             description=description or f"ROS2 launch service for {launch_file}",
             exec_command=" ".join(launch_cmd),
             env_vars=env_vars,
+            source_scripts=source_scripts,
             network_isolation=network_isolation,
         )
 
@@ -187,6 +189,7 @@ class SystemdServiceManager:
         executable: str,
         node_args: Optional[List[str]] = None,
         env_vars: Optional[Dict[str, str]] = None,
+        source_scripts: Optional[List[str]] = None,
         description: Optional[str] = None,
         network_isolation: bool = False,
     ) -> bool:
@@ -228,6 +231,7 @@ class SystemdServiceManager:
             description=description or f"ROS2 node service for {package}/{executable}",
             exec_command=" ".join(node_cmd),
             env_vars=env_vars,
+            source_scripts=source_scripts,
             network_isolation=network_isolation,
         )
 
@@ -244,6 +248,7 @@ class SystemdServiceManager:
         description: str,
         exec_command: str,
         env_vars: Optional[Dict[str, str]] = None,
+        source_scripts: Optional[List[str]] = None,
         network_isolation: bool = False,
     ) -> str:
         """Generate systemd service file content."""
@@ -258,6 +263,15 @@ class SystemdServiceManager:
         env_info += "]"
         enhanced_description = description + env_info
 
+        # Build the ExecStart command
+        if source_scripts:
+            # Source all scripts in order
+            source_cmds = " && ".join([f"source {script}" for script in source_scripts])
+            exec_start = f"/bin/bash -c '{source_cmds} && {exec_command}'"
+        else:
+            # No source scripts provided - run command directly
+            exec_start = f"/bin/bash -c '{exec_command}'"
+
         service_lines = [
             "[Unit]",
             f"Description={enhanced_description}",
@@ -265,7 +279,7 @@ class SystemdServiceManager:
             "",
             "[Service]",
             "Type=simple",
-            f"ExecStart=/bin/bash -c 'source /opt/ros/humble/setup.bash && {exec_command}'",
+            f"ExecStart={exec_start}",
             "Restart=on-failure",
             "RestartSec=5",
             "StandardOutput=journal",

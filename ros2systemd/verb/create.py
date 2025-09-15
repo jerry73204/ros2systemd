@@ -21,7 +21,7 @@ class CreateVerb(VerbExtension):
         ros2 systemd create my-talker node demo_nodes_cpp talker
 
         # Create service for a node with node arguments
-        ros2 systemd create my-talker --domain-id 42 node demo_nodes_cpp talker --ros-args -p frequency:=2.0
+        ros2 systemd create my-talker --domain-id 42 node demo_nodes_cpp talker -- --ros-args -p frequency:=2.0
 
         # With environment options
         ros2 systemd create my-service --domain-id 42 --rmw rmw_cyclonedds_cpp --env CUSTOM_VAR=value \
@@ -48,7 +48,7 @@ Examples:
   ros2 systemd create my-talker node demo_nodes_cpp talker
 
   # Create service for a node with node arguments
-  ros2 systemd create my-talker --domain-id 42 node demo_nodes_cpp talker --ros-args -p frequency:=2.0
+  ros2 systemd create my-talker --domain-id 42 node demo_nodes_cpp talker -- --ros-args -p frequency:=2.0
 
   # With environment options
   ros2 systemd create my-service --domain-id 42 --rmw rmw_cyclonedds_cpp --env CUSTOM_VAR=value \\
@@ -60,10 +60,29 @@ Examples:
   # Create system-wide service (requires sudo)
   ros2 systemd create my-system-service --system node pkg exe
 
-Environment Variables:
+Environment Options:
+  --no-capture-env  Don't capture ROS/Ament environment from current shell
+  --source PATH     Source a setup script before running (can be used multiple times)
+  --copy-env KEY    Copy specific environment variable from current shell
+  --env KEY=VALUE   Set environment variable
   --domain-id N     Sets ROS_DOMAIN_ID=N (valid range: 0-232)
   --rmw IMPL        Sets RMW_IMPLEMENTATION=IMPL
-  --env KEY=VALUE   Sets custom environment variables
+
+  By default, ROS/Ament environment variables are captured from your current shell.
+  This includes AMENT_PREFIX_PATH, ROS_*, PYTHONPATH, etc.
+
+  Examples:
+    # Use current environment (default, recommended)
+    ros2 systemd create my-service node pkg exe
+
+    # Add extra setup script to current environment
+    ros2 systemd create my-service --source ~/special/setup.bash node pkg exe
+
+    # Use only explicit setup scripts
+    ros2 systemd create my-service --no-capture-env \\
+      --source /opt/ros/humble/setup.bash \\
+      --source ~/ws/install/setup.bash \\
+      node pkg exe
 
 Network Isolation:
   --network-isolation creates a service that runs in an isolated network namespace.
@@ -86,7 +105,25 @@ Network Isolation:
 
         # Systemd-specific flags (before the subcommand)
         parser.add_argument(
-            "--env", nargs="*", help="Additional environment variables in KEY=VALUE format (e.g., 'FOO=bar')"
+            "--env",
+            action="append",
+            metavar="KEY=VALUE",
+            help="Additional environment variables in KEY=VALUE format (can be used multiple times)",
+        )
+        parser.add_argument(
+            "--copy-env",
+            action="append",
+            metavar="KEY",
+            help="Copy specific environment variable from current shell (can be used multiple times)",
+        )
+        parser.add_argument(
+            "--source",
+            action="append",
+            metavar="PATH",
+            help="Source a setup script before running (can be used multiple times)",
+        )
+        parser.add_argument(
+            "--no-capture-env", action="store_true", help="Don't capture ROS/Ament environment from current shell"
         )
         parser.add_argument(
             "--domain-id",
@@ -134,27 +171,109 @@ Network Isolation:
             "For 'node': executable name (required)",
         )
 
-        # Remaining arguments are either launch args (KEY:=VALUE) or node args
+        # Remaining arguments after '--' are either launch args (KEY:=VALUE) or node args
+        # Using REMAINDER to capture everything after the last positional argument
         parser.add_argument(
             "extra_args",
-            nargs="*",
+            nargs=argparse.REMAINDER,
             help="For 'launch': launch arguments in KEY:=VALUE format\n"
-            "For 'node': additional arguments to pass to the node",
+            "For 'node': additional arguments to pass to the node\n"
+            "Note: Use '--' before extra arguments if they contain flags starting with '-'\n"
+            "Example: ros2 systemd create name node pkg exe -- --ros-args -p param:=value",
         )
+
+    def _capture_ros_ament_environment(self):
+        """Capture ROS/Ament-specific environment variables from current shell."""
+        import os
+
+        # List of ROS/Ament environment variable patterns to capture
+        ros_ament_vars = {}
+        capture_keys = [
+            "AMENT_PREFIX_PATH",
+            "CMAKE_PREFIX_PATH",
+            "LD_LIBRARY_PATH",
+            "PATH",
+            "PYTHONPATH",
+            "PKG_CONFIG_PATH",
+            "COLCON_PREFIX_PATH",
+        ]
+
+        # Also capture all ROS_* variables except those we handle specially
+        special_ros_vars = {"ROS_DOMAIN_ID", "ROS_LOCALHOST_ONLY", "RMW_IMPLEMENTATION"}
+
+        for key, value in os.environ.items():
+            if key in capture_keys:
+                ros_ament_vars[key] = value
+            elif key.startswith("ROS_") and key not in special_ros_vars:
+                ros_ament_vars[key] = value
+            elif key.startswith("RMW_") and key not in special_ros_vars:
+                ros_ament_vars[key] = value
+
+        return ros_ament_vars
 
     def main(self, *, args):
         import os
         from pathlib import Path
 
+        # Handle '--' delimiter validation for extra_args
+        # Note: We need to check sys.argv to see if '--' was actually used
+        # because argparse.REMAINDER doesn't preserve the '--' delimiter
+        import sys
+
+        extra_args = args.extra_args
+        delimiter_used = "--" in sys.argv
+
+        if extra_args:
+            # Check if any arguments start with dashes
+            has_dash_args = any(arg.startswith("-") for arg in extra_args)
+            if has_dash_args and not delimiter_used:
+                print("Error: Arguments starting with '-' must be preceded by '--' delimiter.")
+                print("Example: ros2 systemd create name node pkg exe -- --ros-args -p param:=value")
+                return 1
+            elif delimiter_used:
+                # Validate that '--' was in the right position
+                # Find where extra_args would start in sys.argv
+                try:
+                    # Look for the delimiter after the main arguments
+                    delimiter_index = sys.argv.index("--")
+                    # Check if there are any create-command flags after the delimiter
+                    args_after_delimiter = sys.argv[delimiter_index + 1 :]
+
+                    # The extra_args should match what comes after '--'
+                    if args_after_delimiter != extra_args:
+                        print("Warning: Argument parsing mismatch detected.")
+                        print(f"Expected: {args_after_delimiter}")
+                        print(f"Got: {extra_args}")
+
+                except ValueError:
+                    # This shouldn't happen if delimiter_used is True, but handle gracefully
+                    pass
+
         manager = SystemdServiceManager(user_mode=not args.system)
 
-        # Parse environment variables
+        # Start with ROS/Ament environment capture (unless disabled)
         env_vars = {}
+        captured_env = {}
+        if not args.no_capture_env:
+            captured_env = self._capture_ros_ament_environment()
+            env_vars.update(captured_env)
+
+        # Handle explicitly copied environment variables
+        if args.copy_env:
+            for key in args.copy_env:
+                if key in os.environ:
+                    env_vars[key] = os.environ[key]
+                else:
+                    print(f"Warning: Environment variable '{key}' not found in current shell")
+
+        # Parse additional environment variables from --env
         if args.env:
             for env_var in args.env:
                 if "=" in env_var:
                     key, value = env_var.split("=", 1)
                     env_vars[key] = value
+                else:
+                    print(f"Warning: Invalid environment variable format '{env_var}' (expected KEY=VALUE)")
 
         # Handle ROS_DOMAIN_ID - use shell value if not specified
         if args.domain_id is not None:
@@ -176,6 +295,35 @@ Network Isolation:
         elif "ROS_LOCALHOST_ONLY" not in env_vars:
             # Copy from shell environment if available, otherwise use default
             env_vars["ROS_LOCALHOST_ONLY"] = os.environ.get("ROS_LOCALHOST_ONLY", "0")
+
+        # Process source scripts
+        source_scripts = []
+        if args.source:
+            for script_path in args.source:
+                resolved_path = Path(script_path).expanduser().resolve()
+                if not resolved_path.exists():
+                    print(f"Warning: Source script not found: {script_path}")
+                else:
+                    source_scripts.append(str(resolved_path))
+
+            # Warn if using both source scripts and environment capture
+            if not args.no_capture_env and source_scripts:
+                print("⚠️  Note: Setup scripts specified. ROS/Ament environment will still be captured.")
+                print("   Use --no-capture-env to disable environment capture.")
+                print()
+
+        # Warn if no environment setup is provided
+        if args.no_capture_env and not source_scripts:
+            has_ros_env = any(key in env_vars for key in ["AMENT_PREFIX_PATH", "CMAKE_PREFIX_PATH"])
+            if not has_ros_env:
+                print("⚠️  Warning: No ROS environment setup provided!")
+                print("   - Environment capture is disabled (--no-capture-env)")
+                print("   - No source scripts specified (--source)")
+                print("   The service may fail to find ROS2 commands and packages.")
+                print("   Consider either:")
+                print("   1. Remove --no-capture-env to capture current environment")
+                print("   2. Add --source /opt/ros/humble/setup.bash or your workspace setup")
+                print()
 
         # Warn about network isolation limitations
         if args.network_isolation and not args.system:
@@ -233,13 +381,14 @@ Network Isolation:
                 launch_file=launch_file_path,
                 launch_args=launch_args,
                 env_vars=env_vars,
+                source_scripts=source_scripts,
                 description=args.description,
                 network_isolation=args.network_isolation,
             )
 
             if success:
                 print(f"Successfully created service 'ros2-{args.service_name}' for launch file '{launch_file_path}'")
-                self._print_environment_info(env_vars, args.network_isolation)
+                self._print_environment_info(env_vars, args.network_isolation, captured_env, source_scripts)
                 print(f"Use 'ros2 systemd start {args.service_name}' to start the service")
                 return 0
             else:
@@ -264,26 +413,58 @@ Network Isolation:
                 executable=executable,
                 node_args=node_args,
                 env_vars=env_vars,
+                source_scripts=source_scripts,
                 description=args.description,
                 network_isolation=args.network_isolation,
             )
 
             if success:
                 print(f"Successfully created service 'ros2-{args.service_name}' " f"for node '{package}/{executable}'")
-                self._print_environment_info(env_vars, args.network_isolation)
+                self._print_environment_info(env_vars, args.network_isolation, captured_env, source_scripts)
                 print(f"Use 'ros2 systemd start {args.service_name}' to start the service")
                 return 0
             else:
                 print(f"Failed to create service 'ros2-{args.service_name}'")
                 return 1
 
-    def _print_environment_info(self, env_vars, network_isolation):
+    def _print_environment_info(self, env_vars, network_isolation, captured_env=None, source_scripts=None):
         """Print information about the environment variables set for the service."""
         import os
 
-        print("\nService environment:")
+        print("\nEnvironment configuration:")
 
-        # Print ROS environment variables
+        # Print captured ROS/Ament environment info
+        if captured_env:
+            print("  ✓ Captured ROS/Ament environment from current shell")
+            if "AMENT_PREFIX_PATH" in captured_env:
+                paths = captured_env["AMENT_PREFIX_PATH"].split(":")
+                if len(paths) > 2:
+                    print(f"    - AMENT_PREFIX_PATH: {paths[0]}:...:{paths[-1]} ({len(paths)} paths)")
+                else:
+                    print(f"    - AMENT_PREFIX_PATH: {captured_env['AMENT_PREFIX_PATH']}")
+            if "ROS_DISTRO" in captured_env:
+                print(f"    - ROS_DISTRO: {captured_env['ROS_DISTRO']}")
+
+            # Count other captured variables
+            special_vars = {
+                "AMENT_PREFIX_PATH",
+                "ROS_DISTRO",
+                "ROS_DOMAIN_ID",
+                "RMW_IMPLEMENTATION",
+                "ROS_LOCALHOST_ONLY",
+            }
+            other_count = len([k for k in captured_env.keys() if k not in special_vars])
+            if other_count > 0:
+                print(f"    - [{other_count} more variables captured]")
+
+        # Print source scripts
+        if source_scripts:
+            print("  ✓ Setup scripts to source:")
+            for i, script in enumerate(source_scripts, 1):
+                print(f"    {i}. {script}")
+
+        # Print main ROS environment variables
+        print("\n  ✓ ROS Configuration:")
         domain_id = env_vars.get("ROS_DOMAIN_ID", "0")
         rmw = env_vars.get("RMW_IMPLEMENTATION", "rmw_fastrtps_cpp")
         localhost = env_vars.get("ROS_LOCALHOST_ONLY", "0")
@@ -301,19 +482,31 @@ Network Isolation:
         if localhost == "0" and "ROS_LOCALHOST_ONLY" not in os.environ:
             localhost_source = "(default)"
 
-        print(f"  ROS_DOMAIN_ID={domain_id} {domain_source}")
-        print(f"  RMW_IMPLEMENTATION={rmw} {rmw_source}")
-        print(f"  ROS_LOCALHOST_ONLY={localhost} {localhost_source}")
+        print(f"    - ROS_DOMAIN_ID={domain_id} {domain_source}")
+        print(f"    - RMW_IMPLEMENTATION={rmw} {rmw_source}")
+        print(f"    - ROS_LOCALHOST_ONLY={localhost} {localhost_source}")
 
         if network_isolation:
-            print("  Network: Isolated (PrivateNetwork=yes)")
+            print("    - Network: Isolated (PrivateNetwork=yes)")
 
-        # Print custom environment variables
-        custom_vars = {
-            k: v for k, v in env_vars.items() if k not in ["ROS_DOMAIN_ID", "RMW_IMPLEMENTATION", "ROS_LOCALHOST_ONLY"]
-        }
-        if custom_vars:
-            print("  Custom variables:")
-            for key, value in custom_vars.items():
-                print(f"    {key}={value}")
+        # Print additional environment variables (not in captured env)
+        additional_vars = {}
+        for k, v in env_vars.items():
+            if k not in ["ROS_DOMAIN_ID", "RMW_IMPLEMENTATION", "ROS_LOCALHOST_ONLY"]:
+                # Only show if it wasn't in captured_env or was explicitly set
+                if not captured_env or k not in captured_env or captured_env.get(k) != v:
+                    additional_vars[k] = v
+
+        if additional_vars:
+            print("\n  ✓ Additional environment:")
+            for key, value in additional_vars.items():
+                # Determine source
+                if key in os.environ and os.environ[key] == value:
+                    source = "(copied from shell)"
+                else:
+                    source = "(specified)"
+                # Truncate long values
+                display_value = value if len(value) <= 50 else value[:47] + "..."
+                print(f"    - {key}={display_value} {source}")
+
         print()

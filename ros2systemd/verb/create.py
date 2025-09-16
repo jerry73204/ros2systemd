@@ -61,15 +61,18 @@ Examples:
   ros2 systemd create my-system-service --system node pkg exe
 
 Environment Options:
-  --no-capture-env  Don't capture ROS/Ament environment from current shell
+  --env-mode MODE   Environment copying mode (ros/all/none, default: ros)
+                    - 'ros': Copy ROS/DDS variables only (safe, recommended)
+                    - 'all': Copy all environment variables (security risk warning)
+                    - 'none': Copy only explicitly specified variables
   --source PATH     Source a setup script before running (can be used multiple times)
   --copy-env KEY    Copy specific environment variable from current shell
   --env KEY=VALUE   Set environment variable
   --domain-id N     Sets ROS_DOMAIN_ID=N (valid range: 0-232)
   --rmw IMPL        Sets RMW_IMPLEMENTATION=IMPL
 
-  By default, ROS/Ament environment variables are captured from your current shell.
-  This includes AMENT_PREFIX_PATH, ROS_*, PYTHONPATH, etc.
+  By default (--env-mode=ros), ROS/DDS environment variables are captured.
+  This includes AMENT_PREFIX_PATH, ROS_*, RMW_*, CYCLONEDDS_*, FASTRTPS_*, etc.
 
   Examples:
     # Use current environment (default, recommended)
@@ -79,7 +82,7 @@ Environment Options:
     ros2 systemd create my-service --source ~/special/setup.bash node pkg exe
 
     # Use only explicit setup scripts
-    ros2 systemd create my-service --no-capture-env \\
+    ros2 systemd create my-service --env-mode=none \\
       --source /opt/ros/humble/setup.bash \\
       --source ~/ws/install/setup.bash \\
       node pkg exe
@@ -123,7 +126,10 @@ Network Isolation:
             help="Source a setup script before running (can be used multiple times)",
         )
         parser.add_argument(
-            "--no-capture-env", action="store_true", help="Don't capture ROS/Ament environment from current shell"
+            "--env-mode",
+            choices=["ros", "all", "none"],
+            default="ros",
+            help="Environment variable copying mode: 'ros' (ROS/DDS variables only, default), 'all' (all variables), 'none' (explicit only)",
         )
         parser.add_argument(
             "--domain-id",
@@ -182,13 +188,23 @@ Network Isolation:
             "Example: ros2 systemd create name node pkg exe -- --ros-args -p param:=value",
         )
 
-    def _capture_ros_ament_environment(self):
-        """Capture ROS/Ament-specific environment variables from current shell."""
+    def _capture_environment(self, mode="ros"):
+        """Capture environment variables based on the specified mode."""
         import os
 
-        # List of ROS/Ament environment variable patterns to capture
-        ros_ament_vars = {}
-        capture_keys = [
+        if mode == "none":
+            return {}
+
+        if mode == "all":
+            # Copy all environment variables except those we handle specially
+            special_vars = {"ROS_DOMAIN_ID", "ROS_LOCALHOST_ONLY", "RMW_IMPLEMENTATION"}
+            return {k: v for k, v in os.environ.items() if k not in special_vars}
+
+        # mode == "ros" - ROS/DDS-specific variables only
+        captured_vars = {}
+
+        # Core ROS/Ament paths
+        core_keys = [
             "AMENT_PREFIX_PATH",
             "CMAKE_PREFIX_PATH",
             "LD_LIBRARY_PATH",
@@ -198,18 +214,32 @@ Network Isolation:
             "COLCON_PREFIX_PATH",
         ]
 
-        # Also capture all ROS_* variables except those we handle specially
-        special_ros_vars = {"ROS_DOMAIN_ID", "ROS_LOCALHOST_ONLY", "RMW_IMPLEMENTATION"}
+        # DDS-specific configuration variables
+        dds_keys = [
+            "CYCLONEDDS_URI",
+            "CYCLONEDDS_NETWORK_INTERFACE",
+            "CYCLONEDDS_PEER_ADDRESSES",
+            "FASTRTPS_DEFAULT_PROFILES_FILE",
+            "RMW_FASTRTPS_USE_QOS_FROM_XML",
+            "RMW_FASTRTPS_PUBLICATION_MODE",
+        ]
+
+        # Variables we handle specially
+        special_vars = {"ROS_DOMAIN_ID", "ROS_LOCALHOST_ONLY", "RMW_IMPLEMENTATION"}
 
         for key, value in os.environ.items():
-            if key in capture_keys:
-                ros_ament_vars[key] = value
-            elif key.startswith("ROS_") and key not in special_ros_vars:
-                ros_ament_vars[key] = value
-            elif key.startswith("RMW_") and key not in special_ros_vars:
-                ros_ament_vars[key] = value
+            if key in core_keys or key in dds_keys:
+                captured_vars[key] = value
+            elif key.startswith("ROS_") and key not in special_vars:
+                captured_vars[key] = value
+            elif key.startswith("RMW_") and key not in special_vars:
+                captured_vars[key] = value
+            elif key.startswith("CYCLONEDDS_"):
+                captured_vars[key] = value
+            elif key.startswith("FASTRTPS_"):
+                captured_vars[key] = value
 
-        return ros_ament_vars
+        return captured_vars
 
     def main(self, *, args):
         import os
@@ -251,12 +281,21 @@ Network Isolation:
 
         manager = SystemdServiceManager(user_mode=not args.system)
 
-        # Start with ROS/Ament environment capture (unless disabled)
+        # Determine environment capture mode
+        env_mode = args.env_mode
+
+        # Add security warning for 'all' mode
+        if env_mode == "all":
+            print("⚠️  WARNING: --env-mode=all copies ALL environment variables!")
+            print("   This may expose sensitive data (SSH keys, tokens, etc.) via systemd.")
+            print("   Environment variables will be visible via 'systemctl show' command.")
+            print("   Use --env-mode=ros for safer ROS-only variable copying.")
+            print()
+
+        # Capture environment variables based on mode
         env_vars = {}
-        captured_env = {}
-        if not args.no_capture_env:
-            captured_env = self._capture_ros_ament_environment()
-            env_vars.update(captured_env)
+        captured_env = self._capture_environment(env_mode)
+        env_vars.update(captured_env)
 
         # Handle explicitly copied environment variables
         if args.copy_env:
@@ -307,21 +346,21 @@ Network Isolation:
                     source_scripts.append(str(resolved_path))
 
             # Warn if using both source scripts and environment capture
-            if not args.no_capture_env and source_scripts:
+            if env_mode != "none" and source_scripts:
                 print("⚠️  Note: Setup scripts specified. ROS/Ament environment will still be captured.")
-                print("   Use --no-capture-env to disable environment capture.")
+                print("   Use --env-mode=none to disable environment capture.")
                 print()
 
         # Warn if no environment setup is provided
-        if args.no_capture_env and not source_scripts:
+        if env_mode == "none" and not source_scripts:
             has_ros_env = any(key in env_vars for key in ["AMENT_PREFIX_PATH", "CMAKE_PREFIX_PATH"])
             if not has_ros_env:
                 print("⚠️  Warning: No ROS environment setup provided!")
-                print("   - Environment capture is disabled (--no-capture-env)")
+                print("   - Environment capture is disabled (--env-mode=none)")
                 print("   - No source scripts specified (--source)")
                 print("   The service may fail to find ROS2 commands and packages.")
                 print("   Consider either:")
-                print("   1. Remove --no-capture-env to capture current environment")
+                print("   1. Use --env-mode=ros to capture current environment")
                 print("   2. Add --source /opt/ros/humble/setup.bash or your workspace setup")
                 print()
 

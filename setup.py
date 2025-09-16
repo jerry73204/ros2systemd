@@ -51,10 +51,12 @@ if in_ros2_build:
             "ros2cli",
             "setuptools",
         ],
-        "tests_require": [
-            "pytest",
-            "pytest-cov",
-        ],
+        "extras_require": {
+            "dev": [
+                "pytest",
+                "pytest-cov",
+            ],
+        },
     })
 else:
     # Pure pip installation

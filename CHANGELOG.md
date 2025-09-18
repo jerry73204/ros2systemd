@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.3.0] - 2025-09-18
+
+### Added
+- `--env-mode` flag with options `ros`, `all`, and `none` for flexible environment variable capture
+- Expanded ROS environment variable capture to include more keys (ROS_NAMESPACE, ROS_LOG_DIR, etc.)
+- GitHub installation instructions in README
+
+### Changed
+- Replaced `--no-capture-env` flag with more flexible `--env-mode={ros,all,none}`
+- Environment capture now includes additional ROS-specific variables for better service compatibility
+- Simplified installation with removal of pyproject.toml in favor of setup.py only
+- Updated CLI usage documentation with clearer examples
+
+### Fixed
+- Setup.py compatibility issues with pip installations
+- Environment variable capture completeness
+
+### Removed
+- pyproject.toml file (using setup.py exclusively)
+- `--no-capture-env` flag (replaced by `--env-mode`)
+
 ## [0.2.0] - 2025-09-15
 
 ### Added

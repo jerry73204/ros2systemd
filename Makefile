@@ -19,6 +19,8 @@ help:
 	@echo "  lint       - Run flake8 code linter"
 	@echo "  format     - Format code with black"
 	@echo "  check-style - Check code style with isort and pylint"
+	@echo "  wheel      - Build a Python wheel for distribution"
+	@echo "  release    - Build wheel and prepare for release"
 
 .PHONY: check-env
 check-env:
@@ -63,6 +65,7 @@ clean:
 	@rm -rf build install log
 	@rm -rf __pycache__ */__pycache__ */*/__pycache__
 	@rm -f ros2systemd_dev
+	@rm -rf dist *.egg-info ros2systemd.egg-info
 	@find . -name "*.pyc" -delete
 	@find . -name "*.pyo" -delete
 	@find . -name ".pytest_cache" -type d -exec rm -rf {} + 2>/dev/null || true
@@ -108,3 +111,36 @@ check-style: check-env
 		$(PYTHON) -m pylint ros2systemd --rcfile=.pylintrc 2>/dev/null || \
 			$(PYTHON) -m pylint ros2systemd; \
 	fi
+
+.PHONY: wheel
+wheel:
+	@echo "Building Python wheel..."
+	@if [ -d "dist" ]; then \
+		echo "Cleaning previous dist directory..."; \
+		rm -rf dist; \
+	fi
+	@if [ -d "ros2systemd.egg-info" ]; then \
+		echo "Cleaning previous egg-info..."; \
+		rm -rf ros2systemd.egg-info; \
+	fi
+	@$(PYTHON) -m pip install --upgrade setuptools wheel build 2>/dev/null || true
+	@$(PYTHON) -m build --wheel --outdir dist .
+	@echo "Wheel built successfully:"
+	@ls -lh dist/*.whl
+	@echo ""
+	@echo "To install locally: pip install dist/*.whl"
+	@echo "To upload to PyPI: twine upload dist/*.whl"
+
+.PHONY: release
+release: clean lint format wheel
+	@echo "Release preparation complete!"
+	@echo ""
+	@echo "Built wheel:"
+	@ls -lh dist/*.whl
+	@echo ""
+	@echo "Next steps:"
+	@echo "1. Commit all changes: git add -A && git commit -m 'Release v$$($(PYTHON) setup.py --version)'"
+	@echo "2. Tag the release: git tag v$$($(PYTHON) setup.py --version)"
+	@echo "3. Push to GitHub: git push origin main --tags"
+	@echo "4. Upload wheel to GitHub release page"
+	@echo "5. (Optional) Upload to PyPI: twine upload dist/*.whl"

@@ -57,6 +57,7 @@ class TestLaunchVerb(unittest.TestCase):
         self.assertIn("--description", help_text)
         self.assertIn("--system", help_text)
         self.assertIn("--name", help_text)
+        self.assertIn("--replace", help_text)
 
     def test_parse_basic_args(self):
         """Test parsing basic arguments."""
@@ -377,6 +378,84 @@ class TestLaunchVerb(unittest.TestCase):
         # Verify failure
         self.assertEqual(result, 1)
         mock_manager.create_launch_service.assert_not_called()
+
+    @patch("ros2systemd.verb.launch.SystemdServiceManager")
+    def test_main_with_replace_existing_service(self, mock_manager_class):
+        """Test launch command with --replace option when service exists and is running."""
+        # Mock the manager and its methods
+        mock_manager = MagicMock()
+        mock_manager_class.return_value = mock_manager
+        mock_manager.get_service_status.return_value = {"exists": True, "active": "running"}
+        mock_manager.stop_service.return_value = True
+        mock_manager.remove_service.return_value = True
+        mock_manager._resolve_package_path.return_value = "/path/to/launch.py"
+        mock_manager.create_launch_service.return_value = True
+        mock_manager.start_service.return_value = (True, "")
+
+        # Parse args
+        args = self.parser.parse_args(["--replace", "--name", "test-service", "demo_nodes_cpp", "launch.py"])
+
+        # Run main
+        result = self.verb.main(args=args)
+
+        # Verify replacement workflow
+        self.assertEqual(result, 0)
+        mock_manager.get_service_status.assert_called_once_with("test-service")
+        mock_manager.stop_service.assert_called_once_with("test-service")
+        mock_manager.remove_service.assert_called_once_with("test-service")
+        mock_manager.create_launch_service.assert_called_once()
+        mock_manager.start_service.assert_called_once_with("test-service")
+
+    @patch("ros2systemd.verb.launch.SystemdServiceManager")
+    def test_main_with_replace_existing_stopped_service(self, mock_manager_class):
+        """Test launch command with --replace option when service exists but is stopped."""
+        # Mock the manager and its methods
+        mock_manager = MagicMock()
+        mock_manager_class.return_value = mock_manager
+        mock_manager.get_service_status.return_value = {"exists": True, "active": "inactive"}
+        mock_manager.remove_service.return_value = True
+        mock_manager._resolve_package_path.return_value = "/path/to/launch.py"
+        mock_manager.create_launch_service.return_value = True
+        mock_manager.start_service.return_value = (True, "")
+
+        # Parse args
+        args = self.parser.parse_args(["--replace", "--name", "test-service", "demo_nodes_cpp", "launch.py"])
+
+        # Run main
+        result = self.verb.main(args=args)
+
+        # Verify replacement workflow (stop should not be called for inactive service)
+        self.assertEqual(result, 0)
+        mock_manager.get_service_status.assert_called_once_with("test-service")
+        mock_manager.stop_service.assert_not_called()  # Should not stop inactive service
+        mock_manager.remove_service.assert_called_once_with("test-service")
+        mock_manager.create_launch_service.assert_called_once()
+        mock_manager.start_service.assert_called_once_with("test-service")
+
+    @patch("ros2systemd.verb.launch.SystemdServiceManager")
+    def test_main_with_replace_nonexistent_service(self, mock_manager_class):
+        """Test launch command with --replace option when service does not exist."""
+        # Mock the manager and its methods
+        mock_manager = MagicMock()
+        mock_manager_class.return_value = mock_manager
+        mock_manager.get_service_status.return_value = {"exists": False}
+        mock_manager._resolve_package_path.return_value = "/path/to/launch.py"
+        mock_manager.create_launch_service.return_value = True
+        mock_manager.start_service.return_value = (True, "")
+
+        # Parse args
+        args = self.parser.parse_args(["--replace", "--name", "test-service", "demo_nodes_cpp", "launch.py"])
+
+        # Run main
+        result = self.verb.main(args=args)
+
+        # Verify normal creation workflow (no stop/remove should occur)
+        self.assertEqual(result, 0)
+        mock_manager.get_service_status.assert_called_once_with("test-service")
+        mock_manager.stop_service.assert_not_called()
+        mock_manager.remove_service.assert_not_called()
+        mock_manager.create_launch_service.assert_called_once()
+        mock_manager.start_service.assert_called_once_with("test-service")
 
 
 if __name__ == "__main__":

@@ -27,6 +27,9 @@ Examples:
   # Run as system service
   ros2 systemd run --system demo_nodes_cpp talker
 
+  # Replace existing service with same name
+  ros2 systemd run --name my-talker --replace demo_nodes_cpp talker
+
 The service will be named automatically as 'ros2-{package}-{executable}-{timestamp}'.
 Use 'ros2 systemd list' to see all services and 'ros2 systemd stop <name>' to stop.
 """
@@ -89,6 +92,11 @@ Use 'ros2 systemd list' to see all services and 'ros2 systemd stop <name>' to st
             "--name",
             metavar="SERVICE_NAME",
             help="Custom service name (default: auto-generated from package-executable-timestamp)",
+        )
+        parser.add_argument(
+            "--replace",
+            action="store_true",
+            help="Stop and remove existing service with the same name before creating new one",
         )
 
         # Required positional arguments (matching ros2 run)
@@ -236,6 +244,19 @@ Use 'ros2 systemd list' to see all services and 'ros2 systemd stop <name>' to st
         if args.network_isolation and not args.system:
             print("⚠️  Warning: Network isolation requires root privileges and --system flag.")
             print()
+
+        # Handle service replacement if requested
+        if args.replace:
+            status = manager.get_service_status(service_name)
+            if status["exists"]:
+                print(f"Service 'ros2-{service_name}' already exists. Replacing...")
+                # Stop the service if it's running
+                if status["active"] in ["running", "active"]:
+                    print(f"Stopping existing service 'ros2-{service_name}'...")
+                    manager.stop_service(service_name)
+                # Remove the existing service
+                print(f"Removing existing service 'ros2-{service_name}'...")
+                manager.remove_service(service_name)
 
         # Create the service
         print(f"Creating service 'ros2-{service_name}'...")

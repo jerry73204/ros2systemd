@@ -129,7 +129,8 @@ Network Isolation:
             "--env-mode",
             choices=["ros", "all", "none"],
             default="ros",
-            help="Environment variable copying mode: 'ros' (ROS/DDS variables only, default), 'all' (all variables), 'none' (explicit only)",
+            help="Environment variable copying mode: 'ros' (ROS/DDS variables only, default), "
+            "'all' (all variables), 'none' (explicit only)",
         )
         parser.add_argument(
             "--domain-id",

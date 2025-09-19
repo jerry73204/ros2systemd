@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.1] - 2025-09-19
+
+### Added
+- `--replace` option for `ros2 systemd run` and `ros2 systemd launch` commands
+- Service replacement functionality that stops and removes existing services before creating new ones
+- Comprehensive test coverage for replacement functionality (6 new tests)
+- Updated help text and examples for the new --replace option
+
+### Fixed
+- Code style issues (line length, whitespace, unused imports)
+
 ## [0.4.0] - 2025-09-19
 
 ### Added

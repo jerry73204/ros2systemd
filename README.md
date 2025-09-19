@@ -8,10 +8,10 @@ A ROS2 command extension for managing ROS2 launches and nodes as systemd service
 
 From GitHub release (recommended):
 
-Download the wheel file from the [v0.3.0 release page](https://github.com/jerry73204/ros2systemd/releases/tag/v0.3.0) and install:
+Download the wheel file from the [v0.4.0 release page](https://github.com/jerry73204/ros2systemd/releases/tag/v0.4.0) and install:
 
 ```bash
-pip install https://github.com/jerry73204/ros2systemd/releases/download/v0.3.0/ros2systemd-0.3.0-py3-none-any.whl
+pip install https://github.com/jerry73204/ros2systemd/releases/download/v0.4.0/ros2systemd-0.4.0-py3-none-any.whl
 ```
 
 From source:

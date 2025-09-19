@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.4.0] - 2025-09-19
+
+### Added
+- `ros2 systemd run` command for instant node service creation and startup (create + start in one step)
+- `ros2 systemd launch` command for instant launch file service creation and startup (create + start in one step)
+- Auto-generated service names with timestamp for uniqueness (`package-executable-timestamp`)
+- `--name` option for custom service names in both run and launch commands
+- Comprehensive test coverage for new run and launch verbs (34 new tests)
+- Improved README.md with intuitive usage progression (`ros2 run` → `ros2 systemd run`)
+
+### Changed
+- Reorganized README.md tutorial structure for better user experience
+- Compacted Command Reference section to focus on essential syntax
+- Enhanced argument parsing and environment handling in new commands
+- Updated integration tests to properly handle ROS2 environment setup
+
+### Fixed
+- Integration test failures due to missing ROS2 environment setup in systemd services
+- Service name generation for launch files (properly removes .launch.py extensions)
+- Line length issues in code formatting
+
+### Technical Improvements
+- Consistent environment capture logic across run and launch commands
+- Robust error handling and validation for service creation and startup
+- Mock-based testing for comprehensive coverage without system dependencies
+- Proper delimiter validation for command arguments
+
 ## [0.3.0] - 2025-09-18
 
 ### Added

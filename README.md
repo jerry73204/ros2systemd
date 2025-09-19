@@ -24,66 +24,87 @@ cd ros2systemd
 pip install .
 ```
 
-### Basic Example
+### Basic Usage - Running Nodes as Services
 
-Here's a complete workflow to manage a ROS2 node as a systemd service:
+You already know how to run ROS2 nodes:
+
+```bash
+# Traditional way - runs in foreground, stops when terminal closes
+ros2 run demo_nodes_cpp talker
+```
+
+Now run the same node as a persistent systemd service:
+
+```bash
+# Run as a service - runs in background, survives terminal closure
+ros2 systemd run demo_nodes_cpp talker
+
+# Stop and remove the service when done
+ros2 systemd stop demo_nodes_cpp-talker-1234567890  # (auto-generated name)
+ros2 systemd remove demo_nodes_cpp-talker-1234567890
+```
+
+### Launch Files as Services
+
+You already know how to launch ROS2 launch files:
+
+```bash
+# Traditional way - runs in foreground, stops when terminal closes
+ros2 launch demo_nodes_cpp talker_listener.launch.py
+```
+
+Now run the same launch file as a persistent systemd service:
+
+```bash
+# Launch as a service - runs in background, survives terminal closure
+ros2 systemd launch demo_nodes_cpp talker_listener.launch.py
+
+# Stop and remove the service when done
+ros2 systemd stop demo_nodes_cpp-talker_listener-1234567890  # (auto-generated name)
+ros2 systemd remove demo_nodes_cpp-talker_listener-1234567890
+```
+
+### Detailed Usage
+
+#### Service Management Workflow
+
+For more control over the service lifecycle, use the traditional create/start/stop workflow:
 
 ```bash
 # 1. Create a service for the demo talker node
 ros2 systemd create talker-demo node demo_nodes_cpp talker
 
-# Create a node with ROS arguments (requires -- delimiter)
-ros2 systemd create talker-custom node demo_nodes_cpp talker -- \
-    --ros-args -p frequency:=2.0 -p topic_name:=custom_chatter
-
-# 2. List all ROS2 systemd services
-ros2 systemd list
-
-# 3. Start the service
+# 2. Start the service
 ros2 systemd start talker-demo
 
-# 4. Check service status
+# 3. Check service status and logs
 ros2 systemd status talker-demo
-
-# 5. View service logs
 ros2 systemd logs talker-demo
 
-# 6. Restart the service
-ros2 systemd restart talker-demo
-
-# 7. Stop the service
+# 4. Stop and remove when done
 ros2 systemd stop talker-demo
-
-# 8. Enable service to start on boot
-ros2 systemd enable talker-demo
-
-# 9. Remove the service when no longer needed
 ros2 systemd remove talker-demo
 ```
 
-### Launch File Example
-
-Managing a launch file with multiple nodes:
+#### Advanced Options
 
 ```bash
-# Create service from a launch file
-ros2 systemd create robot-bringup launch demo_nodes_cpp talker_listener.launch.py
+# Custom service name and arguments
+ros2 systemd run --name my-talker demo_nodes_cpp talker -- --ros-args -p frequency:=2.0
 
-# Create service from launch file with arguments
-ros2 systemd create nav-stack launch nav2_bringup navigation_launch.py -- \
-    use_sim_time:=true \
-    params_file:=/path/to/params.yaml
+# Environment settings
+ros2 systemd run --domain-id 42 --rmw rmw_cyclonedds_cpp demo_nodes_cpp talker
 
-# Start and enable for automatic startup
-ros2 systemd start robot-bringup
-ros2 systemd enable robot-bringup
+# Launch files with arguments
+ros2 systemd launch --name my-demo demo_nodes_cpp talker_listener.launch.py use_sim_time:=true
 
-# Monitor the service
-ros2 systemd status robot-bringup
-ros2 systemd logs robot-bringup --follow
+# Enable automatic startup on boot
+ros2 systemd create my-service node demo_nodes_cpp talker
+ros2 systemd start my-service
+ros2 systemd enable my-service  # Starts automatically on boot
 ```
 
-### Environment Configuration Example
+#### Environment Configuration
 
 Create services with specific ROS2 configurations:
 
@@ -105,90 +126,33 @@ ros2 systemd create workspace-robot --source ~/my_workspace/install/setup.bash \
     node my_package my_node
 
 # Disable environment capture and use explicit setup
-ros2 systemd create minimal-robot --no-capture-env \
+ros2 systemd create minimal-robot --env-mode none \
     --source /opt/ros/humble/setup.bash \
     node demo_nodes_cpp talker
 ```
 
 ## Command Reference
 
-### Create Services
-
-Create a service for a ROS2 node:
 ```bash
-ros2 systemd create <service-name> node <package> <executable> [options]
-```
+# Quick commands (create + start)
+ros2 systemd run [options] <package> <executable> [-- <args>]
+ros2 systemd launch [options] <package> [launch-file] [<launch-args>]
 
-Create a service for a launch file:
-```bash
-ros2 systemd create <service-name> launch <package_or_path> [launch-file] [options]
-```
-
-#### Options:
-- `--domain-id N`: Set ROS_DOMAIN_ID (0-232)
-- `--rmw IMPL`: Set RMW implementation (e.g., rmw_fastrtps_cpp)
-- `--localhost-only {0,1}`: Set ROS_LOCALHOST_ONLY
-- `--env KEY=VALUE`: Add custom environment variables (can be used multiple times)
-- `--copy-env KEY`: Copy specific environment variable from current shell
-- `--source PATH`: Source a setup script before running (can be used multiple times)
-- `--no-capture-env`: Don't automatically capture ROS/Ament environment variables
-- `--system`: Create system-wide service (requires sudo)
-- `--network-isolation`: Enable network isolation (only works with --system)
-- `--no-color`: Disable colored output (for status and logs commands)
-- `--description TEXT`: Custom service description
-
-**Note**: Extra arguments containing flags starting with dashes require `--` delimiter:
-```bash
-ros2 systemd create my-node node demo_nodes_cpp talker -- --ros-args -p frequency:=2.0
-```
-
-### Service Management
-
-```bash
-# Start/stop services
-ros2 systemd start <service-name>
-ros2 systemd stop <service-name>
-ros2 systemd restart <service-name>
-
-# Enable/disable automatic startup
-ros2 systemd enable <service-name>   # Start on boot
-ros2 systemd disable <service-name>  # Don't start on boot
-
-# Check service status
+# Service lifecycle
+ros2 systemd create <service-name> {node|launch} <package> <executable|launch-file> [options]
+ros2 systemd start|stop|restart <service-name>
+ros2 systemd enable|disable <service-name>
 ros2 systemd status <service-name>
-ros2 systemd status <service-name> --no-color   # Disable colors
-
-# View logs
-ros2 systemd logs <service-name>
-ros2 systemd logs <service-name> --follow    # Real-time logs
-ros2 systemd logs <service-name> --lines 50   # Last 50 lines
-ros2 systemd logs <service-name> --no-color   # Disable colors
-
-# List all services
+ros2 systemd logs <service-name> [--follow] [--lines N]
 ros2 systemd list
-
-# Remove a service
 ros2 systemd remove <service-name>
-```
 
-### Diagnostic Tools
-
-Diagnose environment mismatches between services and the ROS2 daemon:
-```bash
+# Diagnostics
 ros2 systemd diagnose [service-name]
+ros2 systemd template {node|launch} <package> <executable|launch-file>
 ```
 
-Generate service templates:
-```bash
-# Show template for a node service
-ros2 systemd template node my_package my_node
-
-# Show template for a launch service
-ros2 systemd template launch my_package my_launch.py
-
-# Save template to file
-ros2 systemd template node my_package my_node > my-service.txt
-```
+**Note**: Use `ros2 systemd <command> --help` for detailed options and examples.
 
 ## Advanced Usage
 

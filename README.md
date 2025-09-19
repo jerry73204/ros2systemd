@@ -98,6 +98,10 @@ ros2 systemd run --domain-id 42 --rmw rmw_cyclonedds_cpp demo_nodes_cpp talker
 # Launch files with arguments
 ros2 systemd launch --name my-demo demo_nodes_cpp talker_listener.launch.py use_sim_time:=true
 
+# Replace existing service with same name
+ros2 systemd run --name my-talker --replace demo_nodes_cpp talker
+ros2 systemd launch --name my-launch --replace demo_nodes_cpp talker_listener.launch.py
+
 # Enable automatic startup on boot
 ros2 systemd create my-service node demo_nodes_cpp talker
 ros2 systemd start my-service

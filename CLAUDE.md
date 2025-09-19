@@ -7,6 +7,7 @@ This is a ROS2 command extension that manages ROS2 nodes and launch files as sys
 
 ### Package Structure
 - **Package name**: `ros2systemd` (renamed from `ros2_systemd`)
+- **Current version**: 0.3.0
 - **Main module**: `ros2systemd/`
 - **Command entry**: `ros2 systemd <verb> <args>`
 - **GitHub repo**: https://github.com/jerry73204/ros2systemd
@@ -32,13 +33,20 @@ colcon build
 
 # Or just
 make build
+
+# Build a Python wheel for distribution
+make wheel
+
+# Full release preparation (lint, format, build wheel)
+make release
 ```
 
 ### Installation Methods
-1. **pip install from GitHub** (recommended): `pip install git+https://github.com/jerry73204/ros2systemd.git`
-2. **pip install from source**: `pip install .`
-3. **Colcon build**: `colcon build --packages-select ros2systemd`
-4. **pip install from PyPI** (when published): `pip install ros2systemd`
+1. **pip install from GitHub release**: `pip install https://github.com/jerry73204/ros2systemd/releases/download/v0.3.0/ros2systemd-0.3.0-py3-none-any.whl`
+2. **pip install from GitHub** (latest): `pip install git+https://github.com/jerry73204/ros2systemd.git`
+3. **pip install from source**: `pip install .`
+4. **Colcon build**: `colcon build --packages-select ros2systemd`
+5. **pip install from PyPI** (when published): `pip install ros2systemd`
 
 ## Important Technical Details
 
@@ -54,9 +62,14 @@ make build
 - The `diagnose` command helps identify these mismatches
 - Solution: Stop daemon and restart with matching environment
 
-### Environment Variable Inheritance
+### Environment Variable Management
+- **New in v0.3.0**: `--env-mode` flag replaces `--no-capture-env`
+  - `ros` (default): Capture only ROS-specific environment variables
+  - `all`: Capture all environment variables from current shell
+  - `none`: Don't capture any environment variables
 - When flags like `--domain-id`, `--rmw`, `--localhost-only` are NOT specified, the service inherits values from the current shell
 - The create command shows what values are being used and their source (shell/specified/default)
+- Expanded ROS variable capture includes: ROS_NAMESPACE, ROS_LOG_DIR, and more
 
 ## Code Style
 - **Line length**: 120 characters
@@ -66,6 +79,16 @@ make build
 - **Import sorting**: stdlib, third-party, local (enforced by isort)
 
 ## Common Tasks
+
+### Creating a New Release
+1. Update version in `setup.py` (line 12)
+2. Update CHANGELOG.md with new version entry
+3. Update README.md download links if needed
+4. Run `make release` to build the wheel
+5. Commit changes: `git add -A && git commit -m "Release v<version>"`
+6. Tag release: `git tag v<version>`
+7. Push: `git push origin main --tags`
+8. Upload `dist/ros2systemd-*.whl` to GitHub release page
 
 ### Adding a New Verb
 1. Create new file in `ros2systemd/verb/`
@@ -117,16 +140,24 @@ ros2 systemd remove test
 4. **Read service logs directly** with `journalctl` for detailed debugging
 5. **Format before committing**: `make format`
 6. **Run tests before pushing**: `colcon test`
+7. **Build wheel for releases**: `make wheel` (creates dist/ros2systemd-*.whl)
+8. **Full release workflow**: `make release` (clean, lint, format, build wheel)
 
-## Recent Changes (Last Session)
+## Recent Changes (v0.3.0 - 2025-09-18)
+- **Version bumped to 0.3.0**
+- Added `--env-mode` flag replacing `--no-capture-env` with more flexible options (ros/all/none)
+- Expanded ROS environment variable capture (ROS_NAMESPACE, ROS_LOG_DIR, etc.)
+- Removed pyproject.toml in favor of setup.py only for better pip compatibility
+- Added Makefile targets for wheel building: `make wheel` and `make release`
+- Updated installation instructions with GitHub release wheel URLs
+- Created comprehensive release notes in RELEASE_v0.3.0.md
+
+## Previous Session Changes (v0.2.0)
 - Renamed project from `ros2_systemd` to `ros2systemd`
-- Revised README with examples-first approach
-- Added pip installation support with pyproject.toml
-- Added warning for network isolation with user services
+- Added exec() based terminal control for `status` and `logs` commands
+- Made `--` delimiter mandatory for launch/node arguments with dashes
 - Added environment variable inheritance from shell
 - Removed confirmation prompt from `ros2 systemd remove` command
-- Refactored CLI to use Option 3 pattern: systemd flags before launch/node subcommand
-- Updated README to recommend GitHub installation before PyPI publication
 
 ## Contact
 - GitHub: https://github.com/jerry73204/ros2systemd

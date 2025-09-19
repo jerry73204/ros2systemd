@@ -7,7 +7,7 @@ This is a ROS2 command extension that manages ROS2 nodes and launch files as sys
 
 ### Package Structure
 - **Package name**: `ros2systemd` (renamed from `ros2_systemd`)
-- **Current version**: 0.3.0
+- **Current version**: 0.4.1
 - **Main module**: `ros2systemd/`
 - **Command entry**: `ros2 systemd <verb> <args>`
 - **GitHub repo**: https://github.com/jerry73204/ros2systemd
@@ -42,7 +42,7 @@ make release
 ```
 
 ### Installation Methods
-1. **pip install from GitHub release**: `pip install https://github.com/jerry73204/ros2systemd/releases/download/v0.3.0/ros2systemd-0.3.0-py3-none-any.whl`
+1. **pip install from GitHub release**: `pip install https://github.com/jerry73204/ros2systemd/releases/download/v0.4.1/ros2systemd-0.4.1-py3-none-any.whl`
 2. **pip install from GitHub** (latest): `pip install git+https://github.com/jerry73204/ros2systemd.git`
 3. **pip install from source**: `pip install .`
 4. **Colcon build**: `colcon build --packages-select ros2systemd`
@@ -105,8 +105,19 @@ make release
 ```bash
 # Quick test after changes
 colcon build && source install/setup.bash
+
+# Test new run/launch commands
+ros2 systemd run demo_nodes_cpp talker
+ros2 systemd launch demo_nodes_cpp talker_listener.launch.py
+
+# Test replacement functionality
+ros2 systemd run --name test-talker demo_nodes_cpp talker
+ros2 systemd run --name test-talker --replace demo_nodes_cpp listener
+
+# Test traditional workflow
 ros2 systemd create test node demo_nodes_cpp talker
-ros2 systemd list
+ros2 systemd start test
+ros2 systemd stop test
 ros2 systemd remove test
 ```
 
@@ -143,21 +154,55 @@ ros2 systemd remove test
 7. **Build wheel for releases**: `make wheel` (creates dist/ros2systemd-*.whl)
 8. **Full release workflow**: `make release` (clean, lint, format, build wheel)
 
-## Recent Changes (v0.3.0 - 2025-09-18)
-- **Version bumped to 0.3.0**
+## Available Commands
+
+### Quick Commands (v0.4.0+)
+- `ros2 systemd run <package> <executable> [-- <args>]` - Create and start node service in one step
+- `ros2 systemd launch <package> [launch-file] [<launch-args>]` - Create and start launch service in one step
+- Both commands auto-generate service names as `package-executable-timestamp`
+- Use `--name <custom-name>` for custom service names
+- Use `--replace` to stop and remove existing services with the same name (v0.4.1+)
+
+### Traditional Commands
+- `ros2 systemd create <name> {node|launch} <package> <executable|launch-file> [options]`
+- `ros2 systemd start|stop|restart <name>`
+- `ros2 systemd enable|disable <name>`
+- `ros2 systemd status <name>`
+- `ros2 systemd logs <name> [--follow] [--lines N]`
+- `ros2 systemd list`
+- `ros2 systemd remove <name>`
+- `ros2 systemd diagnose [name]`
+- `ros2 systemd template {node|launch} <package> <executable|launch-file>`
+
+## Recent Changes (v0.4.1 - 2025-09-19)
+- **Version bumped to 0.4.1**
+- Added `--replace` option for `ros2 systemd run` and `ros2 systemd launch` commands
+- Service replacement functionality that stops and removes existing services before creating new ones
+- Comprehensive test coverage for replacement functionality (6 new tests, 58 total)
+- Updated help text and examples for the new --replace option
+- Fixed code style issues (line length, whitespace, unused imports)
+
+## Previous Changes (v0.4.0 - 2025-09-19)
+- Added `ros2 systemd run` command for instant node service creation and startup
+- Added `ros2 systemd launch` command for instant launch file service creation and startup
+- Auto-generated service names with timestamp for uniqueness
+- Added `--name` option for custom service names in both commands
+- Comprehensive test coverage (34 new tests)
+- Reorganized README.md with intuitive tutorial progression
+- Compacted Command Reference section
+- Fixed integration test environment setup issues
+
+## Previous Changes (v0.3.0 - 2025-09-18)
 - Added `--env-mode` flag replacing `--no-capture-env` with more flexible options (ros/all/none)
 - Expanded ROS environment variable capture (ROS_NAMESPACE, ROS_LOG_DIR, etc.)
 - Removed pyproject.toml in favor of setup.py only for better pip compatibility
 - Added Makefile targets for wheel building: `make wheel` and `make release`
-- Updated installation instructions with GitHub release wheel URLs
-- Created comprehensive release notes in RELEASE_v0.3.0.md
 
-## Previous Session Changes (v0.2.0)
+## Previous Changes (v0.2.0)
 - Renamed project from `ros2_systemd` to `ros2systemd`
 - Added exec() based terminal control for `status` and `logs` commands
 - Made `--` delimiter mandatory for launch/node arguments with dashes
 - Added environment variable inheritance from shell
-- Removed confirmation prompt from `ros2 systemd remove` command
 
 ## Contact
 - GitHub: https://github.com/jerry73204/ros2systemd

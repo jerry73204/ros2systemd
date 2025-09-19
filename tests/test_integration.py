@@ -67,12 +67,13 @@ class TestRos2SystemdIntegration(unittest.TestCase):
         """Test complete service lifecycle."""
         service_name = f"test-lifecycle-{self.timestamp}"
 
-        # Create service
+        # Create service with ROS2 environment setup
         self.manager.create_node_service(
             service_name=service_name,
             package="demo_nodes_py",
             executable="talker",
             description="Lifecycle test service",
+            source_scripts=["/opt/ros/humble/setup.bash"],
         )
         self.__class__.test_services.append(service_name)
 

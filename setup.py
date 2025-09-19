@@ -36,6 +36,8 @@ common_params = {
             "template = ros2systemd.verb.template:TemplateVerb",
             "logs = ros2systemd.verb.logs:LogsVerb",
             "diagnose = ros2systemd.verb.diagnose:DiagnoseVerb",
+            "run = ros2systemd.verb.run:RunVerb",
+            "launch = ros2systemd.verb.launch:LaunchVerb",
         ],
     },
 }

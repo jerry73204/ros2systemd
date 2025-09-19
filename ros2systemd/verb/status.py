@@ -1,5 +1,4 @@
 import os
-import sys
 
 from ros2systemd.verb import VerbExtension
 

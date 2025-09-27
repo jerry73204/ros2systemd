@@ -123,7 +123,6 @@ wheel:
 		echo "Cleaning previous egg-info..."; \
 		rm -rf ros2systemd.egg-info; \
 	fi
-	@$(PYTHON) -m pip install --upgrade setuptools wheel build 2>/dev/null || true
 	@$(PYTHON) -m build --wheel --outdir dist .
 	@echo "Wheel built successfully:"
 	@ls -lh dist/*.whl

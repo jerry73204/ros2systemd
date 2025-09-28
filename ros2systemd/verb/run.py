@@ -98,6 +98,12 @@ Use 'ros2 systemd list' to see all services and 'ros2 systemd stop <name>' to st
             action="store_true",
             help="Stop and remove existing service with the same name before creating new one",
         )
+        parser.add_argument(
+            "--verbose",
+            "-v",
+            action="store_true",
+            help="Show detailed output including environment configuration",
+        )
 
         # Required positional arguments (matching ros2 run)
         parser.add_argument("package_name", help="Name of the ROS package")
@@ -143,10 +149,19 @@ Use 'ros2 systemd list' to see all services and 'ros2 systemd stop <name>' to st
             "RMW_FASTRTPS_PUBLICATION_MODE",
         ]
 
+        logging_keys = [
+            "RCUTILS_LOGGING_USE_STDOUT",
+            "RCUTILS_LOGGING_BUFFERED_STREAM",
+            "RCUTILS_COLORIZED_OUTPUT",
+            "RCUTILS_CONSOLE_OUTPUT_FORMAT",
+            "RCUTILS_CONSOLE_STDOUT_LINE_BUFFERED",
+            "RCUTILS_LOGGING_SEPARATOR",
+        ]
+
         special_vars = {"ROS_DOMAIN_ID", "ROS_LOCALHOST_ONLY", "RMW_IMPLEMENTATION"}
 
         for key, value in os.environ.items():
-            if key in core_keys or key in dds_keys:
+            if key in core_keys or key in dds_keys or key in logging_keys:
                 captured_vars[key] = value
             elif key.startswith("ROS_") and key not in special_vars:
                 captured_vars[key] = value
@@ -156,8 +171,84 @@ Use 'ros2 systemd list' to see all services and 'ros2 systemd stop <name>' to st
                 captured_vars[key] = value
             elif key.startswith("FASTRTPS_"):
                 captured_vars[key] = value
+            elif key.startswith("RCUTILS_"):
+                captured_vars[key] = value
 
         return captured_vars
+
+    def _print_environment_info(self, env_vars, network_isolation, captured_env=None, source_scripts=None):
+        """Print information about the environment variables set for the service."""
+        import os
+
+        print("\nEnvironment configuration:")
+
+        if captured_env:
+            print("  Captured ROS/Ament environment from current shell")
+            if "AMENT_PREFIX_PATH" in captured_env:
+                paths = captured_env["AMENT_PREFIX_PATH"].split(":")
+                if len(paths) > 2:
+                    print(f"    - AMENT_PREFIX_PATH: {paths[0]}:...:{paths[-1]} ({len(paths)} paths)")
+                else:
+                    print(f"    - AMENT_PREFIX_PATH: {captured_env['AMENT_PREFIX_PATH']}")
+            if "ROS_DISTRO" in captured_env:
+                print(f"    - ROS_DISTRO: {captured_env['ROS_DISTRO']}")
+
+            special_vars = {
+                "AMENT_PREFIX_PATH",
+                "ROS_DISTRO",
+                "ROS_DOMAIN_ID",
+                "RMW_IMPLEMENTATION",
+                "ROS_LOCALHOST_ONLY",
+            }
+            other_count = len([k for k in captured_env.keys() if k not in special_vars])
+            if other_count > 0:
+                print(f"    - [{other_count} more variables captured]")
+
+        if source_scripts:
+            print("  Setup scripts to source:")
+            for i, script in enumerate(source_scripts, 1):
+                print(f"    {i}. {script}")
+
+        print("\n  ROS Configuration:")
+        domain_id = env_vars.get("ROS_DOMAIN_ID", "0")
+        rmw = env_vars.get("RMW_IMPLEMENTATION", "rmw_fastrtps_cpp")
+        localhost = env_vars.get("ROS_LOCALHOST_ONLY", "0")
+
+        domain_source = "(from shell)" if domain_id == os.environ.get("ROS_DOMAIN_ID") else "(specified)"
+        rmw_source = "(from shell)" if rmw == os.environ.get("RMW_IMPLEMENTATION") else "(specified)"
+        localhost_source = "(from shell)" if localhost == os.environ.get("ROS_LOCALHOST_ONLY") else "(specified)"
+
+        if domain_id == "0" and "ROS_DOMAIN_ID" not in os.environ:
+            domain_source = "(default)"
+        if rmw == "rmw_fastrtps_cpp" and "RMW_IMPLEMENTATION" not in os.environ:
+            rmw_source = "(default)"
+        if localhost == "0" and "ROS_LOCALHOST_ONLY" not in os.environ:
+            localhost_source = "(default)"
+
+        print(f"    - ROS_DOMAIN_ID={domain_id} {domain_source}")
+        print(f"    - RMW_IMPLEMENTATION={rmw} {rmw_source}")
+        print(f"    - ROS_LOCALHOST_ONLY={localhost} {localhost_source}")
+
+        if network_isolation:
+            print("    - Network: Isolated (PrivateNetwork=yes)")
+
+        additional_vars = {}
+        for k, v in env_vars.items():
+            if k not in ["ROS_DOMAIN_ID", "RMW_IMPLEMENTATION", "ROS_LOCALHOST_ONLY"]:
+                if not captured_env or k not in captured_env or captured_env.get(k) != v:
+                    additional_vars[k] = v
+
+        if additional_vars:
+            print("\n  Additional environment:")
+            for key, value in additional_vars.items():
+                if key in os.environ and os.environ[key] == value:
+                    source = "(copied from shell)"
+                else:
+                    source = "(specified)"
+                display_value = value if len(value) <= 50 else value[:47] + "..."
+                print(f"    - {key}={display_value} {source}")
+
+        print()
 
     def _generate_service_name(self, package_name, executable_name):
         """Generate a unique service name based on package, executable, and timestamp."""
@@ -188,10 +279,9 @@ Use 'ros2 systemd list' to see all services and 'ros2 systemd stop <name>' to st
         # Environment setup (simplified from create.py)
         env_mode = args.env_mode
 
-        if env_mode == "all":
-            print("⚠️  WARNING: --env-mode=all copies ALL environment variables!")
-            print("   This may expose sensitive data. Use --env-mode=ros for safer operation.")
-            print()
+        if env_mode == "all" and args.verbose:
+            print("WARNING: --env-mode=all copies ALL environment variables!")
+            print("This may expose sensitive data. Use --env-mode=ros for safer operation.")
 
         env_vars = {}
         captured_env = self._capture_environment(env_mode)
@@ -202,7 +292,7 @@ Use 'ros2 systemd list' to see all services and 'ros2 systemd stop <name>' to st
             for key in args.copy_env:
                 if key in os.environ:
                     env_vars[key] = os.environ[key]
-                else:
+                elif args.verbose:
                     print(f"Warning: Environment variable '{key}' not found in current shell")
 
         # Parse additional environment variables from --env
@@ -211,7 +301,7 @@ Use 'ros2 systemd list' to see all services and 'ros2 systemd stop <name>' to st
                 if "=" in env_var:
                     key, value = env_var.split("=", 1)
                     env_vars[key] = value
-                else:
+                elif args.verbose:
                     print(f"Warning: Invalid environment variable format '{env_var}' (expected KEY=VALUE)")
 
         # Handle ROS environment variables
@@ -236,30 +326,28 @@ Use 'ros2 systemd list' to see all services and 'ros2 systemd stop <name>' to st
             for script_path in args.source:
                 resolved_path = Path(script_path).expanduser().resolve()
                 if not resolved_path.exists():
-                    print(f"Warning: Source script not found: {script_path}")
+                    if args.verbose:
+                        print(f"Warning: Source script not found: {script_path}")
                 else:
                     source_scripts.append(str(resolved_path))
 
         # Network isolation warning
-        if args.network_isolation and not args.system:
-            print("⚠️  Warning: Network isolation requires root privileges and --system flag.")
-            print()
+        if args.network_isolation and not args.system and args.verbose:
+            print("Warning: Network isolation requires root privileges and --system flag.")
 
         # Handle service replacement if requested
+        service_replaced = False
         if args.replace:
             status = manager.get_service_status(service_name)
             if status["exists"]:
-                print(f"Service 'ros2-{service_name}' already exists. Replacing...")
+                service_replaced = True
                 # Stop the service if it's running
                 if status["active"] in ["running", "active"]:
-                    print(f"Stopping existing service 'ros2-{service_name}'...")
                     manager.stop_service(service_name)
                 # Remove the existing service
-                print(f"Removing existing service 'ros2-{service_name}'...")
                 manager.remove_service(service_name)
 
         # Create the service
-        print(f"Creating service 'ros2-{service_name}'...")
         success = manager.create_node_service(
             service_name=service_name,
             package=args.package_name,
@@ -275,22 +363,18 @@ Use 'ros2 systemd list' to see all services and 'ros2 systemd stop <name>' to st
             print(f"Failed to create service 'ros2-{service_name}'")
             return 1
 
-        print(f"Service 'ros2-{service_name}' created successfully")
-
         # Start the service
-        print(f"Starting service 'ros2-{service_name}'...")
         start_success, start_message = manager.start_service(service_name)
 
         if start_success:
-            print(f"✓ Service 'ros2-{service_name}' is now running")
-            print()
-            print(f"Service name: ros2-{service_name}")
-            print(f"  Stop with:   ros2 systemd stop {service_name}")
-            print(f"  Status with: ros2 systemd status {service_name}")
-            print(f"  Logs with:   ros2 systemd logs {service_name}")
+            action = "Replaced" if service_replaced else "Started"
+            print(f"{action} service 'ros2-{service_name}'")
+            if args.verbose:
+                self._print_environment_info(env_vars, args.network_isolation, captured_env, source_scripts)
             return 0
         else:
-            print(f"✗ Failed to start service 'ros2-{service_name}'")
-            print(f"Error: {start_message}")
-            print(f"Service was created but not started. Use 'ros2 systemd start {service_name}' to retry.")
+            print(f"Failed to start service 'ros2-{service_name}'")
+            if args.verbose:
+                print(f"Error: {start_message}")
+                print(f"Service was created but not started. Use 'ros2 systemd start {service_name}' to retry.")
             return 1

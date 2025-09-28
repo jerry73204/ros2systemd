@@ -15,7 +15,6 @@ class StartVerb(VerbExtension):
 
         if success:
             print(f"Successfully started service 'ros2-{args.service_name}'")
-            print(f"Use 'ros2 systemd status {args.service_name}' to check status")
             return 0
         else:
             print(f"Failed to start service 'ros2-{args.service_name}'")

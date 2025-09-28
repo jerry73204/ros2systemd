@@ -147,7 +147,7 @@ class DiagnoseVerb(VerbExtension):
             print("  Note: Service runs in isolated network (no daemon interaction)")
 
         if issues:
-            print("  ⚠️  Potential Issues:")
+            print("  Potential Issues:")
             for issue in issues:
                 print(f"    - {issue}")
             print("    → Service may not be discoverable via 'ros2 topic list'")

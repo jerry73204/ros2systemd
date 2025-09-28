@@ -160,6 +160,12 @@ Network Isolation:
             help="Create system-wide service instead of user service (requires sudo)",
         )
         parser.add_argument(
+            "--verbose",
+            "-v",
+            action="store_true",
+            help="Show detailed output including environment configuration",
+        )
+        parser.add_argument(
             "--replace",
             action="store_true",
             help="Remove existing service with the same name before creating new one",
@@ -285,7 +291,7 @@ Network Isolation:
                     # Look for the delimiter after the main arguments
                     delimiter_index = sys.argv.index("--")
                     # Check if there are any create-command flags after the delimiter
-                    args_after_delimiter = sys.argv[delimiter_index + 1 :]
+                    args_after_delimiter = sys.argv[delimiter_index + 1:]
 
                     # The extra_args should match what comes after '--'
                     if args_after_delimiter != extra_args:
@@ -303,12 +309,11 @@ Network Isolation:
         env_mode = args.env_mode
 
         # Add security warning for 'all' mode
-        if env_mode == "all":
-            print("⚠️  WARNING: --env-mode=all copies ALL environment variables!")
-            print("   This may expose sensitive data (SSH keys, tokens, etc.) via systemd.")
-            print("   Environment variables will be visible via 'systemctl show' command.")
-            print("   Use --env-mode=ros for safer ROS-only variable copying.")
-            print()
+        if env_mode == "all" and args.verbose:
+            print("WARNING: --env-mode=all copies ALL environment variables!")
+            print("This may expose sensitive data (SSH keys, tokens, etc.) via systemd.")
+            print("Environment variables will be visible via 'systemctl show' command.")
+            print("Use --env-mode=ros for safer ROS-only variable copying.")
 
         # Capture environment variables based on mode
         env_vars = {}
@@ -320,7 +325,7 @@ Network Isolation:
             for key in args.copy_env:
                 if key in os.environ:
                     env_vars[key] = os.environ[key]
-                else:
+                elif args.verbose:
                     print(f"Warning: Environment variable '{key}' not found in current shell")
 
         # Parse additional environment variables from --env
@@ -329,7 +334,7 @@ Network Isolation:
                 if "=" in env_var:
                     key, value = env_var.split("=", 1)
                     env_vars[key] = value
-                else:
+                elif args.verbose:
                     print(f"Warning: Invalid environment variable format '{env_var}' (expected KEY=VALUE)")
 
         # Handle ROS_DOMAIN_ID - use shell value if not specified
@@ -359,35 +364,34 @@ Network Isolation:
             for script_path in args.source:
                 resolved_path = Path(script_path).expanduser().resolve()
                 if not resolved_path.exists():
-                    print(f"Warning: Source script not found: {script_path}")
+                    if args.verbose:
+                        print(f"Warning: Source script not found: {script_path}")
                 else:
                     source_scripts.append(str(resolved_path))
 
             # Warn if using both source scripts and environment capture
-            if env_mode != "none" and source_scripts:
-                print("⚠️  Note: Setup scripts specified. ROS/Ament environment will still be captured.")
-                print("   Use --env-mode=none to disable environment capture.")
-                print()
+            if env_mode != "none" and source_scripts and args.verbose:
+                print("Note: Setup scripts specified. ROS/Ament environment will still be captured.")
+                print("Use --env-mode=none to disable environment capture.")
 
         # Warn if no environment setup is provided
-        if env_mode == "none" and not source_scripts:
+        if env_mode == "none" and not source_scripts and args.verbose:
             has_ros_env = any(key in env_vars for key in ["AMENT_PREFIX_PATH", "CMAKE_PREFIX_PATH"])
             if not has_ros_env:
-                print("⚠️  Warning: No ROS environment setup provided!")
-                print("   - Environment capture is disabled (--env-mode=none)")
-                print("   - No source scripts specified (--source)")
-                print("   The service may fail to find ROS2 commands and packages.")
-                print("   Consider either:")
-                print("   1. Use --env-mode=ros to capture current environment")
-                print("   2. Add --source /opt/ros/humble/setup.bash or your workspace setup")
-                print()
+                print("Warning: No ROS environment setup provided!")
+                print("- Environment capture is disabled (--env-mode=none)")
+                print("- No source scripts specified (--source)")
+                print("The service may fail to find ROS2 commands and packages.")
+                print("Consider either:")
+                print("1. Use --env-mode=ros to capture current environment")
+                print("2. Add --source /opt/ros/humble/setup.bash or your workspace setup")
 
         # Warn about network isolation limitations
-        if args.network_isolation and not args.system:
-            print("⚠️  Warning: Network isolation (PrivateNetwork=yes) requires root privileges.")
-            print("   It will NOT work with user services. Consider using --system flag with sudo,")
-            print("   or use ROS_LOCALHOST_ONLY=1 / different ROS_DOMAIN_ID for isolation.")
-            print()
+        if args.network_isolation and not args.system and args.verbose:
+            print("Warning: Network isolation (PrivateNetwork=yes) requires root privileges.")
+            print("It will NOT work with user services. Consider using --system flag with sudo,")
+            print("or use ROS_LOCALHOST_ONLY=1 / different ROS_DOMAIN_ID for isolation.")
+
         # Handle service replacement if requested
         service_replaced = False
         if args.replace:
@@ -425,11 +429,13 @@ Network Isolation:
                         resolved_path = manager._resolve_package_path(path_or_package, common_name)
                         if resolved_path:
                             launch_file_path = str(resolved_path)
-                            print(f"Found launch file: {launch_file_path}")
+                            if args.verbose:
+                                print(f"Found launch file: {launch_file_path}")
                             break
                     else:
                         print(
-                            f"Error: '{path_or_package}' is not a valid file path or package with default launch file"
+                            f"Error: '{path_or_package}' is not a valid file path "
+                            f"or package with default launch file"
                         )
                         return 1
 
@@ -440,7 +446,7 @@ Network Isolation:
                     if ":=" in arg:
                         key, value = arg.split(":=", 1)
                         launch_args[key] = value
-                    else:
+                    elif args.verbose:
                         print(f"Warning: Ignoring invalid launch argument '{arg}' (expected KEY:=VALUE format)")
 
             # Create launch service
@@ -455,9 +461,11 @@ Network Isolation:
             )
 
             if success:
-                print(f"Successfully created service 'ros2-{args.service_name}' for launch file '{launch_file_path}'")
-                self._print_environment_info(env_vars, args.network_isolation, captured_env, source_scripts)
-                print(f"Use 'ros2 systemd start {args.service_name}' to start the service")
+                action = "Replaced" if service_replaced else "Created"
+                print(f"{action} service 'ros2-{args.service_name}' for launch file '{launch_file_path}'")
+                if args.verbose:
+                    self._print_environment_info(env_vars, args.network_isolation, captured_env, source_scripts)
+                    print(f"Use 'ros2 systemd start {args.service_name}' to start the service")
                 return 0
             else:
                 print(f"Failed to create service 'ros2-{args.service_name}'")
@@ -487,9 +495,11 @@ Network Isolation:
             )
 
             if success:
-                print(f"Successfully created service 'ros2-{args.service_name}' " f"for node '{package}/{executable}'")
-                self._print_environment_info(env_vars, args.network_isolation, captured_env, source_scripts)
-                print(f"Use 'ros2 systemd start {args.service_name}' to start the service")
+                action = "Replaced" if service_replaced else "Created"
+                print(f"{action} service 'ros2-{args.service_name}' for node '{package}/{executable}'")
+                if args.verbose:
+                    self._print_environment_info(env_vars, args.network_isolation, captured_env, source_scripts)
+                    print(f"Use 'ros2 systemd start {args.service_name}' to start the service")
                 return 0
             else:
                 print(f"Failed to create service 'ros2-{args.service_name}'")
@@ -503,7 +513,7 @@ Network Isolation:
 
         # Print captured ROS/Ament environment info
         if captured_env:
-            print("  ✓ Captured ROS/Ament environment from current shell")
+            print("  Captured ROS/Ament environment from current shell")
             if "AMENT_PREFIX_PATH" in captured_env:
                 paths = captured_env["AMENT_PREFIX_PATH"].split(":")
                 if len(paths) > 2:
@@ -527,12 +537,12 @@ Network Isolation:
 
         # Print source scripts
         if source_scripts:
-            print("  ✓ Setup scripts to source:")
+            print("  Setup scripts to source:")
             for i, script in enumerate(source_scripts, 1):
                 print(f"    {i}. {script}")
 
         # Print main ROS environment variables
-        print("\n  ✓ ROS Configuration:")
+        print("\n  ROS Configuration:")
         domain_id = env_vars.get("ROS_DOMAIN_ID", "0")
         rmw = env_vars.get("RMW_IMPLEMENTATION", "rmw_fastrtps_cpp")
         localhost = env_vars.get("ROS_LOCALHOST_ONLY", "0")
@@ -566,7 +576,7 @@ Network Isolation:
                     additional_vars[k] = v
 
         if additional_vars:
-            print("\n  ✓ Additional environment:")
+            print("\n  Additional environment:")
             for key, value in additional_vars.items():
                 # Determine source
                 if key in os.environ and os.environ[key] == value:

@@ -230,11 +230,21 @@ Network Isolation:
             "RMW_FASTRTPS_PUBLICATION_MODE",
         ]
 
+        # Logging-specific configuration variables
+        logging_keys = [
+            "RCUTILS_LOGGING_USE_STDOUT",
+            "RCUTILS_LOGGING_BUFFERED_STREAM",
+            "RCUTILS_COLORIZED_OUTPUT",
+            "RCUTILS_CONSOLE_OUTPUT_FORMAT",
+            "RCUTILS_CONSOLE_STDOUT_LINE_BUFFERED",
+            "RCUTILS_LOGGING_SEPARATOR",
+        ]
+
         # Variables we handle specially
         special_vars = {"ROS_DOMAIN_ID", "ROS_LOCALHOST_ONLY", "RMW_IMPLEMENTATION"}
 
         for key, value in os.environ.items():
-            if key in core_keys or key in dds_keys:
+            if key in core_keys or key in dds_keys or key in logging_keys:
                 captured_vars[key] = value
             elif key.startswith("ROS_") and key not in special_vars:
                 captured_vars[key] = value
@@ -243,6 +253,8 @@ Network Isolation:
             elif key.startswith("CYCLONEDDS_"):
                 captured_vars[key] = value
             elif key.startswith("FASTRTPS_"):
+                captured_vars[key] = value
+            elif key.startswith("RCUTILS_"):
                 captured_vars[key] = value
 
         return captured_vars

@@ -84,6 +84,9 @@ ros2 systemd logs talker-demo
 # 4. Stop and remove when done
 ros2 systemd stop talker-demo
 ros2 systemd remove talker-demo
+
+# Or replace existing service (stops, removes, and recreates)
+ros2 systemd create --replace talker-demo node demo_nodes_cpp listener
 ```
 
 #### Advanced Options
@@ -101,6 +104,7 @@ ros2 systemd launch --name my-demo demo_nodes_cpp talker_listener.launch.py use_
 # Replace existing service with same name
 ros2 systemd run --name my-talker --replace demo_nodes_cpp talker
 ros2 systemd launch --name my-launch --replace demo_nodes_cpp talker_listener.launch.py
+ros2 systemd create --replace my-service node demo_nodes_cpp listener
 
 # Enable automatic startup on boot
 ros2 systemd create my-service node demo_nodes_cpp talker

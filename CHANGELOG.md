@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.5.0] - 2025-09-28
+
+### Added
+- `--verbose`/`-v` flag to `create`, `run`, and `launch` commands for detailed output
+- `--replace` option to `create` command for replacing existing services
+- Logging environment variables capture (RCUTILS_* variables) in default environment mode
+- Environment configuration details display in verbose mode
+
+### Changed
+- Minimized default output to one line per operation for better machine-friendliness
+- Removed emojis from all output for improved greppability
+- Output format now shows "Started service" / "Replaced service" instead of verbose multi-line output
+- Environment configuration and usage hints only shown with `--verbose` flag
+- Simplified `start` verb output to single line
+- Warnings and non-critical messages only displayed in verbose mode
+
+### Improved
+- More consistent output format across all verbs
+- Better support for scripting and automation with minimal output
+- Cleaner terminal output for common operations
+
 ## [0.4.1] - 2025-09-19
 
 ### Added

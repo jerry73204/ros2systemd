@@ -9,7 +9,7 @@ in_ros2_build = os.environ.get('COLCON', False) or os.environ.get('AMENT_PREFIX_
 # Common setup parameters
 common_params = {
     "name": package_name,
-    "version": "0.4.1",
+    "version": "0.5.0",
     "packages": find_packages(exclude=["test", "tests"]),
     "zip_safe": True,
     "maintainer": "Your Name",

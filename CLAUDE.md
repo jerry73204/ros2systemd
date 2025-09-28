@@ -7,7 +7,7 @@ This is a ROS2 command extension that manages ROS2 nodes and launch files as sys
 
 ### Package Structure
 - **Package name**: `ros2systemd` (renamed from `ros2_systemd`)
-- **Current version**: 0.4.1
+- **Current version**: 0.5.0
 - **Main module**: `ros2systemd/`
 - **Command entry**: `ros2 systemd <verb> <args>`
 - **GitHub repo**: https://github.com/jerry73204/ros2systemd
@@ -42,7 +42,7 @@ make release
 ```
 
 ### Installation Methods
-1. **pip install from GitHub release**: `pip install https://github.com/jerry73204/ros2systemd/releases/download/v0.4.1/ros2systemd-0.4.1-py3-none-any.whl`
+1. **pip install from GitHub release**: `pip install https://github.com/jerry73204/ros2systemd/releases/download/v0.5.0/ros2systemd-0.5.0-py3-none-any.whl`
 2. **pip install from GitHub** (latest): `pip install git+https://github.com/jerry73204/ros2systemd.git`
 3. **pip install from source**: `pip install .`
 4. **Colcon build**: `colcon build --packages-select ros2systemd`
@@ -162,6 +162,7 @@ ros2 systemd remove test
 - Both commands auto-generate service names as `package-executable-timestamp`
 - Use `--name <custom-name>` for custom service names
 - Use `--replace` to stop and remove existing services with the same name (v0.4.1+)
+- Use `-v`/`--verbose` flag for detailed output including environment configuration (v0.5.0+)
 
 ### Traditional Commands
 - `ros2 systemd create <name> {node|launch} <package> <executable|launch-file> [options]`
@@ -174,8 +175,18 @@ ros2 systemd remove test
 - `ros2 systemd diagnose [name]`
 - `ros2 systemd template {node|launch} <package> <executable|launch-file>`
 
-## Recent Changes (v0.4.1 - 2025-09-19)
-- **Version bumped to 0.4.1**
+## Recent Changes (v0.5.0 - 2025-09-28)
+- **Version bumped to 0.5.0**
+- Added `--verbose`/`-v` flag to `create`, `run`, and `launch` commands for detailed output
+- Added `--replace` option to `create` command
+- Minimized default output to one line per operation (machine-friendly)
+- Removed emojis from all output for better greppability
+- Added logging environment variables capture (RCUTILS_* variables)
+- Improved output format: "Started service" / "Replaced service" instead of verbose multi-line output
+- Environment configuration details now only shown with `--verbose` flag
+- Simplified `start` verb output to single line
+
+## Previous Changes (v0.4.1 - 2025-09-19)
 - Added `--replace` option for `ros2 systemd run` and `ros2 systemd launch` commands
 - Service replacement functionality that stops and removes existing services before creating new ones
 - Comprehensive test coverage for replacement functionality (6 new tests, 58 total)

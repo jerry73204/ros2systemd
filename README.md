@@ -6,12 +6,10 @@ A ROS2 command extension for managing ROS2 launches and nodes as systemd service
 
 ### Installation
 
-From GitHub release (recommended):
-
-Download the wheel file from the [v0.5.0 release page](https://github.com/jerry73204/ros2systemd/releases/tag/v0.5.0) and install:
+From PyPI (recommended):
 
 ```bash
-pip install https://github.com/jerry73204/ros2systemd/releases/download/v0.5.0/ros2systemd-0.5.0-py3-none-any.whl
+pip install ros2systemd
 ```
 
 From source:

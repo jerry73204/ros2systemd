@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.1] - 2025-09-28
+
+### Added
+- Published package to PyPI for easier installation
+- Modern `pyproject.toml` configuration for better packaging
+
+### Changed
+- Installation instructions now prioritize PyPI: `pip install ros2systemd`
+- Upgraded build system to use `pyproject.toml` standard
+
 ## [0.5.0] - 2025-09-28
 
 ### Added

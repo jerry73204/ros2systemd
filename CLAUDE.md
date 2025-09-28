@@ -7,7 +7,7 @@ This is a ROS2 command extension that manages ROS2 nodes and launch files as sys
 
 ### Package Structure
 - **Package name**: `ros2systemd` (renamed from `ros2_systemd`)
-- **Current version**: 0.5.0
+- **Current version**: 0.5.1
 - **Main module**: `ros2systemd/`
 - **Command entry**: `ros2 systemd <verb> <args>`
 - **GitHub repo**: https://github.com/jerry73204/ros2systemd
@@ -42,11 +42,11 @@ make release
 ```
 
 ### Installation Methods
-1. **pip install from GitHub release**: `pip install https://github.com/jerry73204/ros2systemd/releases/download/v0.5.0/ros2systemd-0.5.0-py3-none-any.whl`
-2. **pip install from GitHub** (latest): `pip install git+https://github.com/jerry73204/ros2systemd.git`
-3. **pip install from source**: `pip install .`
-4. **Colcon build**: `colcon build --packages-select ros2systemd`
-5. **pip install from PyPI** (when published): `pip install ros2systemd`
+1. **pip install from PyPI** (recommended): `pip install ros2systemd`
+2. **pip install from GitHub release**: `pip install https://github.com/jerry73204/ros2systemd/releases/download/v0.5.1/ros2systemd-0.5.1-py3-none-any.whl`
+3. **pip install from GitHub** (latest): `pip install git+https://github.com/jerry73204/ros2systemd.git`
+4. **pip install from source**: `pip install .`
+5. **Colcon build**: `colcon build --packages-select ros2systemd`
 
 ## Important Technical Details
 
@@ -164,6 +164,7 @@ ros2 systemd remove test
 - Use `--name <custom-name>` for custom service names
 - Use `--replace` to stop and remove existing services with the same name (v0.4.1+)
 - Use `-v`/`--verbose` flag for detailed output including environment configuration (v0.5.0+)
+- Available on PyPI: `pip install ros2systemd` (v0.5.1+)
 
 ### Traditional Commands
 - `ros2 systemd create <name> {node|launch} <package> <executable|launch-file> [options]`
@@ -176,8 +177,8 @@ ros2 systemd remove test
 - `ros2 systemd diagnose [name]`
 - `ros2 systemd template {node|launch} <package> <executable|launch-file>`
 
-## Recent Changes (v0.5.0 - 2025-09-28)
-- **Version bumped to 0.5.0**
+## Recent Changes (v0.5.1 - 2025-09-28)
+- **Version bumped to 0.5.1**
 - Added `--verbose`/`-v` flag to `create`, `run`, and `launch` commands for detailed output
 - Added `--replace` option to `create` command
 - Minimized default output to one line per operation (machine-friendly)

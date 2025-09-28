@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ros2systemd"
-version = "0.5.0"
+version = "0.5.1"
 description = "ROS2 command extension for managing launches and nodes as systemd services"
 readme = "README.md"
 license = {text = "Apache-2.0"}

@@ -89,6 +89,7 @@ make release
 6. Tag release: `git tag v<version>`
 7. Push: `git push origin main --tags`
 8. Upload `dist/ros2systemd-*.whl` to GitHub release page
+9. (Optional) Publish to PyPI: `twine upload dist/*` (see PUBLISHING.md for details)
 
 ### Adding a New Verb
 1. Create new file in `ros2systemd/verb/`

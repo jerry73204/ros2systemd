@@ -12,10 +12,13 @@ common_params = {
     "version": "0.5.0",
     "packages": find_packages(exclude=["test", "tests"]),
     "zip_safe": True,
-    "maintainer": "Your Name",
-    "maintainer_email": "your.email@example.com",
+    "author": "Jerry Lin",
+    "author_email": "jerry73204@gmail.com",
+    "maintainer": "Jerry Lin",
+    "maintainer_email": "jerry73204@gmail.com",
     "description": "ROS2 command extension for managing launches and nodes as systemd services",
     "license": "Apache-2.0",
+    "keywords": "ros2 systemd service daemon node launch",
     "entry_points": {
         "ros2cli.command": [
             "systemd = ros2systemd.command.systemd:SystemdCommand",
@@ -71,6 +74,11 @@ else:
         "long_description": open("README.md").read() if os.path.exists("README.md") else "",
         "long_description_content_type": "text/markdown",
         "url": "https://github.com/jerry73204/ros2systemd",
+        "project_urls": {
+            "Bug Reports": "https://github.com/jerry73204/ros2systemd/issues",
+            "Source": "https://github.com/jerry73204/ros2systemd",
+            "Documentation": "https://github.com/jerry73204/ros2systemd#readme",
+        },
         "classifiers": [
             "Development Status :: 4 - Beta",
             "Intended Audience :: Developers",

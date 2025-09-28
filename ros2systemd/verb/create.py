@@ -159,6 +159,11 @@ Network Isolation:
             action="store_true",
             help="Create system-wide service instead of user service (requires sudo)",
         )
+        parser.add_argument(
+            "--replace",
+            action="store_true",
+            help="Remove existing service with the same name before creating new one",
+        )
 
         # Service type (launch or node)
         parser.add_argument(
@@ -371,6 +376,17 @@ Network Isolation:
             print("   It will NOT work with user services. Consider using --system flag with sudo,")
             print("   or use ROS_LOCALHOST_ONLY=1 / different ROS_DOMAIN_ID for isolation.")
             print()
+        # Handle service replacement if requested
+        service_replaced = False
+        if args.replace:
+            status = manager.get_service_status(args.service_name)
+            if status["exists"]:
+                service_replaced = True
+                # Stop the service if it's running
+                if status["active"] in ["running", "active"]:
+                    manager.stop_service(args.service_name)
+                # Remove the existing service
+                manager.remove_service(args.service_name)
 
         if args.service_type == "launch":
             # Determine launch file path
